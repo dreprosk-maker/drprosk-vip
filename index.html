@@ -19,229 +19,437 @@
 
         /* ── Lock Screen ── */
         #lock-screen {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            flex-direction: column;
-            gap: 1.5rem;
+            display: flex; align-items: center; justify-content: center;
+            min-height: 100vh; flex-direction: column; gap: 1.5rem;
         }
         #lock-screen h1 {
             font-size: 2rem;
             background: linear-gradient(135deg, #e2b04a, #f0d78c);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
-        #lock-screen .lock-icon {
-            font-size: 3rem;
-            margin-bottom: -0.5rem;
-        }
-        #lock-screen form {
-            display: flex;
-            gap: 0.5rem;
-        }
+        .lock-icon { font-size: 3rem; margin-bottom: -0.5rem; }
+        #lock-screen form { display: flex; gap: 0.5rem; }
         #lock-screen input {
-            padding: 0.7rem 1.2rem;
-            border-radius: 8px;
-            border: 1px solid #333;
-            background: #16213e;
-            color: #eee;
-            font-size: 1rem;
-            outline: none;
-            width: 200px;
-            text-align: center;
-            letter-spacing: 0.15em;
+            padding: 0.7rem 1.2rem; border-radius: 8px; border: 1px solid #333;
+            background: #16213e; color: #eee; font-size: 1rem; outline: none;
+            width: 200px; text-align: center; letter-spacing: 0.15em;
         }
         #lock-screen input:focus { border-color: #e2b04a; }
         #lock-screen input::placeholder { color: #555; letter-spacing: normal; }
-        #lock-screen button {
-            padding: 0.7rem 1.5rem;
-            border-radius: 8px;
-            border: none;
+        .btn-gold {
+            padding: 0.7rem 1.5rem; border-radius: 8px; border: none;
             background: linear-gradient(135deg, #e2b04a, #c9952e);
-            color: #1a1a2e;
-            font-weight: 700;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: opacity 0.2s;
+            color: #1a1a2e; font-weight: 700; font-size: 1rem; cursor: pointer;
         }
-        #lock-screen button:hover { opacity: 0.85; }
-        .shake {
-            animation: shake 0.4s ease;
-        }
+        .btn-gold:hover { opacity: 0.85; }
+        .shake { animation: shake 0.4s ease; }
         @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            20%, 60% { transform: translateX(-8px); }
-            40%, 80% { transform: translateX(8px); }
+            0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)}
         }
-        #error-msg {
-            color: #e74c3c;
-            font-size: 0.85rem;
-            min-height: 1.2em;
-        }
+        #error-msg { color: #e74c3c; font-size: 0.85rem; min-height: 1.2em; }
 
         /* ── Dashboard ── */
-        #dashboard {
-            display: none;
-            padding: 2rem;
-            max-width: 1000px;
-            margin: 0 auto;
-        }
+        #dashboard { display: none; padding: 2rem; max-width: 1100px; margin: 0 auto; }
         .dash-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 2rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid #333;
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid #333;
         }
         .dash-header h1 {
             font-size: 1.8rem;
             background: linear-gradient(135deg, #e2b04a, #f0d78c);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
-        .dash-header .logout {
-            background: none;
-            border: 1px solid #444;
-            color: #888;
-            padding: 0.4rem 1rem;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.85rem;
-            transition: border-color 0.2s, color 0.2s;
+        .dash-header-right { display: flex; align-items: center; gap: 1rem; }
+        .timeout-info { color: #555; font-size: 0.75rem; }
+        .btn-subtle {
+            background: none; border: 1px solid #444; color: #888;
+            padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem;
         }
-        .dash-header .logout:hover { border-color: #e74c3c; color: #e74c3c; }
+        .btn-subtle:hover { border-color: #e2b04a; color: #e2b04a; }
+        .btn-danger:hover { border-color: #e74c3c; color: #e74c3c; }
 
+        /* ── Section ── */
+        .section { margin-bottom: 2rem; }
+        .section-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 0.75rem;
+        }
+        .section-label {
+            color: #555; font-size: 0.75rem; text-transform: uppercase;
+            letter-spacing: 0.1em; cursor: pointer; padding: 2px 6px; border-radius: 4px;
+        }
+        .section-label:hover { background: #ffffff10; }
+        .btn-add {
+            background: none; border: 1px dashed #444; color: #666;
+            padding: 0.25rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem;
+        }
+        .btn-add:hover { border-color: #e2b04a; color: #e2b04a; }
+
+        /* ── Cards Grid ── */
         .tools-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 1rem;
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem;
         }
         .tool-card {
-            background: #16213e;
-            border: 1px solid #333;
-            border-radius: 12px;
-            padding: 1.5rem;
-            text-decoration: none;
-            color: #eee;
-            transition: transform 0.2s, border-color 0.2s;
-            display: block;
+            background: #16213e; border: 1px solid #333; border-radius: 12px;
+            padding: 1.2rem; text-decoration: none; color: #eee;
+            transition: transform 0.2s, border-color 0.2s; display: block; position: relative;
         }
-        .tool-card:hover {
-            transform: translateY(-3px);
-            border-color: #e2b04a;
+        .tool-card:hover { transform: translateY(-2px); border-color: #e2b04a; }
+        .card-actions {
+            position: absolute; top: 8px; right: 8px; display: none; gap: 4px;
         }
-        .tool-card .icon { font-size: 1.8rem; margin-bottom: 0.5rem; }
-        .tool-card h3 { margin-bottom: 0.3rem; font-size: 1.1rem; }
-        .tool-card p { color: #666; font-size: 0.85rem; line-height: 1.4; }
+        .tool-card:hover .card-actions { display: flex; }
+        .card-btn {
+            background: #1a1a2e; border: 1px solid #444; color: #888; width: 28px; height: 28px;
+            border-radius: 6px; cursor: pointer; font-size: 0.75rem; display: flex;
+            align-items: center; justify-content: center;
+        }
+        .card-btn:hover { border-color: #e2b04a; color: #e2b04a; }
+        .card-btn.delete:hover { border-color: #e74c3c; color: #e74c3c; }
+        .card-icon { font-size: 1.6rem; margin-bottom: 0.4rem; }
+        .card-title { font-weight: 600; font-size: 1rem; margin-bottom: 0.2rem; }
+        .card-desc { color: #666; font-size: 0.8rem; line-height: 1.4; }
 
-        .section-label {
-            color: #555;
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            margin-bottom: 0.75rem;
-            margin-top: 1.5rem;
+        /* Add card placeholder */
+        .add-card {
+            background: transparent; border: 2px dashed #333; border-radius: 12px;
+            padding: 1.2rem; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; color: #555; font-size: 0.9rem; min-height: 120px;
+            transition: border-color 0.2s, color 0.2s;
         }
-        .section-label:first-of-type { margin-top: 0; }
+        .add-card:hover { border-color: #e2b04a; color: #e2b04a; }
+
+        /* ── Modal ── */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+            z-index: 100; align-items: center; justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: #16213e; border: 1px solid #333; border-radius: 16px;
+            padding: 2rem; width: 90%; max-width: 420px;
+        }
+        .modal h2 { font-size: 1.2rem; margin-bottom: 1.2rem; color: #e2b04a; }
+        .modal label { display: block; color: #888; font-size: 0.8rem; margin-bottom: 0.3rem; margin-top: 0.8rem; }
+        .modal input, .modal select {
+            width: 100%; padding: 0.6rem 0.8rem; border-radius: 8px; border: 1px solid #333;
+            background: #1a1a2e; color: #eee; font-size: 0.9rem; outline: none;
+        }
+        .modal input:focus, .modal select:focus { border-color: #e2b04a; }
+        .modal-buttons { display: flex; gap: 0.5rem; margin-top: 1.5rem; justify-content: flex-end; }
+        .modal-buttons button { padding: 0.5rem 1.2rem; border-radius: 8px; cursor: pointer; font-size: 0.9rem; }
+        .modal-cancel { background: none; border: 1px solid #444; color: #888; }
+        .modal-cancel:hover { border-color: #e74c3c; color: #e74c3c; }
+        .modal-save { background: linear-gradient(135deg,#e2b04a,#c9952e); border: none; color: #1a1a2e; font-weight: 700; }
+        .emoji-grid {
+            display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; margin-top: 0.3rem;
+            max-height: 120px; overflow-y: auto; background: #1a1a2e; border-radius: 8px;
+            border: 1px solid #333; padding: 6px;
+        }
+        .emoji-opt {
+            font-size: 1.3rem; padding: 4px; text-align: center; cursor: pointer;
+            border-radius: 4px; border: 2px solid transparent;
+        }
+        .emoji-opt:hover, .emoji-opt.selected { border-color: #e2b04a; background: #ffffff10; }
+
+        /* ── Section Name Modal ── */
+        .inline-edit {
+            background: none; border: none; color: #555; font-size: 0.75rem;
+            text-transform: uppercase; letter-spacing: 0.1em; font-family: inherit;
+            outline: none; padding: 2px 6px; border-radius: 4px; width: 100%;
+        }
+        .inline-edit:focus { background: #ffffff10; color: #eee; }
     </style>
 </head>
 <body>
-    <!-- Lock Screen -->
-    <div id="lock-screen">
-        <div class="lock-icon">&#128274;</div>
+
+<!-- Lock Screen -->
+<div id="lock-screen">
+    <div class="lock-icon">&#128274;</div>
+    <h1>VIP Portal</h1>
+    <form id="login-form" onsubmit="return tryLogin(event)">
+        <input type="password" id="pwd" placeholder="Password" autofocus autocomplete="off">
+        <button type="submit" class="btn-gold">Enter</button>
+    </form>
+    <div id="error-msg"></div>
+</div>
+
+<!-- Dashboard -->
+<div id="dashboard">
+    <div class="dash-header">
         <h1>VIP Portal</h1>
-        <form id="login-form" onsubmit="return tryLogin(event)">
-            <input type="password" id="pwd" placeholder="Password" autofocus autocomplete="off">
-            <button type="submit">Enter</button>
-        </form>
-        <div id="error-msg"></div>
-    </div>
-
-    <!-- Dashboard (hidden until login) -->
-    <div id="dashboard">
-        <div class="dash-header">
-            <h1>VIP Portal</h1>
-            <button class="logout" onclick="logout()">Lock</button>
-        </div>
-
-        <div class="section-label">Personal Tools</div>
-        <div class="tools-grid">
-            <a class="tool-card" href="#">
-                <div class="icon">&#128176;</div>
-                <h3>Finance Tracker</h3>
-                <p>Budget, expenses, and investment tracking</p>
-            </a>
-            <a class="tool-card" href="#">
-                <div class="icon">&#128202;</div>
-                <h3>Analytics</h3>
-                <p>Personal metrics and reports</p>
-            </a>
-            <a class="tool-card" href="#">
-                <div class="icon">&#128221;</div>
-                <h3>Notes</h3>
-                <p>Private notes and documents</p>
-            </a>
-        </div>
-
-        <div class="section-label" style="margin-top:2rem">Quick Links</div>
-        <div class="tools-grid">
-            <a class="tool-card" href="https://drprosk.com" target="_blank">
-                <div class="icon">&#127968;</div>
-                <h3>Main Portal</h3>
-                <p>drprosk.com office tools</p>
-            </a>
-            <a class="tool-card" href="https://drprosk.com/printer-quality-tracker/" target="_blank">
-                <div class="icon">&#128424;</div>
-                <h3>Printer Quality Tracker</h3>
-                <p>3D printing quality control</p>
-            </a>
+        <div class="dash-header-right">
+            <span class="timeout-info" id="timeout-display"></span>
+            <button class="btn-subtle" onclick="addSection()">+ Section</button>
+            <button class="btn-subtle btn-danger" onclick="logout()">Lock</button>
         </div>
     </div>
+    <div id="sections-container"></div>
+</div>
 
-    <script>
-        // Simple hash check so the password isn't in plain text in source
-        function simpleHash(str) {
-            let hash = 0;
-            for (let i = 0; i < str.length; i++) {
-                const char = str.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
-                hash |= 0;
-            }
-            return hash;
+<!-- Edit Card Modal -->
+<div class="modal-overlay" id="card-modal">
+    <div class="modal">
+        <h2 id="modal-title">Add Tool</h2>
+        <label>Icon</label>
+        <div class="emoji-grid" id="emoji-picker"></div>
+        <label>Title</label>
+        <input id="m-title" placeholder="Finance Tracker">
+        <label>Description</label>
+        <input id="m-desc" placeholder="Budget, expenses, tracking">
+        <label>Link (URL)</label>
+        <input id="m-link" placeholder="https://...">
+        <label>Open in</label>
+        <select id="m-target">
+            <option value="_self">Same tab</option>
+            <option value="_blank" selected>New tab</option>
+        </select>
+        <div class="modal-buttons">
+            <button class="modal-cancel" onclick="closeModal()">Cancel</button>
+            <button class="modal-save" onclick="saveCard()">Save</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ─── Password ───
+function simpleHash(s){let h=0;for(let i=0;i<s.length;i++){h=((h<<5)-h)+s.charCodeAt(i);h|=0}return h}
+const PASS_HASH = simpleHash('pop');
+
+function tryLogin(e) {
+    e.preventDefault();
+    const input = document.getElementById('pwd');
+    if (simpleHash(input.value) === PASS_HASH) {
+        sessionStorage.setItem('vip_unlocked', 'true');
+        document.getElementById('lock-screen').style.display = 'none';
+        document.getElementById('dashboard').style.display = 'block';
+        resetTimer();
+        renderDashboard();
+    } else {
+        input.classList.add('shake');
+        document.getElementById('error-msg').textContent = 'Wrong password';
+        input.value = '';
+        setTimeout(() => input.classList.remove('shake'), 400);
+    }
+}
+
+function logout() {
+    sessionStorage.removeItem('vip_unlocked');
+    document.getElementById('dashboard').style.display = 'none';
+    document.getElementById('lock-screen').style.display = 'flex';
+    document.getElementById('pwd').value = '';
+    document.getElementById('error-msg').textContent = '';
+    clearInterval(timerInterval);
+}
+
+// ─── Auto Logout (15 min) ───
+const TIMEOUT = 15 * 60;
+let remaining = TIMEOUT;
+let timerInterval;
+
+function resetTimer() {
+    remaining = TIMEOUT;
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+        remaining--;
+        const m = Math.floor(remaining / 60);
+        const s = remaining % 60;
+        document.getElementById('timeout-display').textContent = 'auto-lock ' + m + ':' + String(s).padStart(2,'0');
+        if (remaining <= 0) logout();
+    }, 1000);
+}
+
+['click','keydown','mousemove','scroll','touchstart'].forEach(evt =>
+    document.addEventListener(evt, () => {
+        if (sessionStorage.getItem('vip_unlocked') === 'true') resetTimer();
+    })
+);
+
+// ─── Data ───
+const EMOJIS = ['\ud83d\udcb0','\ud83d\udcb3','\ud83d\udcc8','\ud83d\udcca','\ud83d\udcdd','\ud83d\udcc1','\ud83d\udce7','\ud83d\udd12','\ud83c\udfe0','\ud83d\udda8','\ud83d\udcbb','\ud83d\udcf1','\u2699\ufe0f','\ud83d\ude80','\ud83c\udfaf','\ud83d\udca1','\ud83d\udcc5','\ud83d\udd0d','\ud83c\udf10','\u2b50','\ud83d\udee0\ufe0f','\ud83d\udcbe','\u2764\ufe0f','\ud83c\udf1f','\ud83d\udd25','\ud83e\udde0','\ud83d\udcac','\ud83d\udce6','\ud83c\udfc6','\ud83c\udfb5','\ud83d\udcf7','\ud83c\udf89'];
+
+const DEFAULT_DATA = {
+    sections: [
+        {
+            name: 'Personal Tools',
+            cards: [
+                { icon: '\ud83d\udcb0', title: 'Finance Tracker', desc: 'Budget, expenses, and investments', link: '#', target: '_self' },
+                { icon: '\ud83d\udcca', title: 'Analytics', desc: 'Personal metrics and reports', link: '#', target: '_self' },
+                { icon: '\ud83d\udcdd', title: 'Notes', desc: 'Private notes and documents', link: '#', target: '_self' }
+            ]
+        },
+        {
+            name: 'Quick Links',
+            cards: [
+                { icon: '\ud83c\udfe0', title: 'Main Portal', desc: 'drprosk.com office tools', link: 'https://drprosk.com', target: '_blank' },
+                { icon: '\ud83d\udda8', title: 'Printer Quality Tracker', desc: '3D printing quality control', link: 'https://drprosk.com/printer-quality-tracker/', target: '_blank' }
+            ]
         }
+    ]
+};
 
-        const PASS_HASH = simpleHash('pop');
+function getData() {
+    try {
+        const d = JSON.parse(localStorage.getItem('vip_dash'));
+        if (d && d.sections) return d;
+    } catch(e) {}
+    return JSON.parse(JSON.stringify(DEFAULT_DATA));
+}
+function saveData(d) { localStorage.setItem('vip_dash', JSON.stringify(d)); }
 
-        // Check if already unlocked this session
-        if (sessionStorage.getItem('vip_unlocked') === 'true') {
-            document.getElementById('lock-screen').style.display = 'none';
-            document.getElementById('dashboard').style.display = 'block';
-        }
+// ─── Render ───
+function renderDashboard() {
+    const data = getData();
+    const container = document.getElementById('sections-container');
+    container.innerHTML = '';
 
-        function tryLogin(e) {
-            e.preventDefault();
-            const input = document.getElementById('pwd');
-            if (simpleHash(input.value) === PASS_HASH) {
-                sessionStorage.setItem('vip_unlocked', 'true');
-                document.getElementById('lock-screen').style.display = 'none';
-                document.getElementById('dashboard').style.display = 'block';
-            } else {
-                input.classList.add('shake');
-                document.getElementById('error-msg').textContent = 'Wrong password';
-                input.value = '';
-                setTimeout(() => input.classList.remove('shake'), 400);
-            }
-        }
+    data.sections.forEach((sec, si) => {
+        const div = document.createElement('div');
+        div.className = 'section';
+        div.innerHTML = `
+            <div class="section-header">
+                <input class="inline-edit" value="${esc(sec.name)}"
+                    onchange="renameSection(${si}, this.value)"
+                    onblur="renameSection(${si}, this.value)">
+                <div style="display:flex;gap:6px">
+                    <button class="btn-add" onclick="openModal(${si})">+ Add tool</button>
+                    <button class="btn-add" style="border-color:#e74c3c55;color:#e74c3c88"
+                        onclick="deleteSection(${si})">\u00d7</button>
+                </div>
+            </div>
+            <div class="tools-grid" id="grid-${si}"></div>
+        `;
+        container.appendChild(div);
 
-        function logout() {
-            sessionStorage.removeItem('vip_unlocked');
-            document.getElementById('dashboard').style.display = 'none';
-            document.getElementById('lock-screen').style.display = 'flex';
-            document.getElementById('pwd').value = '';
-            document.getElementById('error-msg').textContent = '';
-        }
-    </script>
+        const grid = div.querySelector('.tools-grid');
+        sec.cards.forEach((card, ci) => {
+            const a = document.createElement('a');
+            a.className = 'tool-card';
+            a.href = card.link || '#';
+            a.target = card.target || '_blank';
+            if (a.href === '#') a.onclick = (e) => e.preventDefault();
+            a.innerHTML = `
+                <div class="card-actions">
+                    <button class="card-btn" onclick="event.preventDefault();event.stopPropagation();openModal(${si},${ci})" title="Edit">\u270f</button>
+                    <button class="card-btn delete" onclick="event.preventDefault();event.stopPropagation();deleteCard(${si},${ci})" title="Delete">\u00d7</button>
+                </div>
+                <div class="card-icon">${card.icon}</div>
+                <div class="card-title">${esc(card.title)}</div>
+                <div class="card-desc">${esc(card.desc)}</div>
+            `;
+            grid.appendChild(a);
+        });
+
+        // Add card placeholder
+        const add = document.createElement('div');
+        add.className = 'add-card';
+        add.textContent = '+ Add tool';
+        add.onclick = () => openModal(si);
+        grid.appendChild(add);
+    });
+}
+
+function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+// ─── Section ops ───
+function addSection() {
+    const data = getData();
+    data.sections.push({ name: 'New Section', cards: [] });
+    saveData(data);
+    renderDashboard();
+}
+
+function renameSection(si, name) {
+    const data = getData();
+    if (data.sections[si]) { data.sections[si].name = name; saveData(data); }
+}
+
+function deleteSection(si) {
+    if (!confirm('Delete this entire section?')) return;
+    const data = getData();
+    data.sections.splice(si, 1);
+    saveData(data);
+    renderDashboard();
+}
+
+// ─── Card Modal ───
+let editSi = null, editCi = null, selectedEmoji = '\ud83d\udcbb';
+
+function buildEmojiPicker() {
+    const grid = document.getElementById('emoji-picker');
+    grid.innerHTML = '';
+    EMOJIS.forEach(e => {
+        const span = document.createElement('span');
+        span.className = 'emoji-opt' + (e === selectedEmoji ? ' selected' : '');
+        span.textContent = e;
+        span.onclick = () => {
+            selectedEmoji = e;
+            grid.querySelectorAll('.emoji-opt').forEach(x => x.classList.remove('selected'));
+            span.classList.add('selected');
+        };
+        grid.appendChild(span);
+    });
+}
+
+function openModal(si, ci) {
+    editSi = si; editCi = ci !== undefined ? ci : null;
+    const data = getData();
+    const card = editCi !== null ? data.sections[si].cards[ci] : null;
+
+    document.getElementById('modal-title').textContent = card ? 'Edit Tool' : 'Add Tool';
+    document.getElementById('m-title').value = card ? card.title : '';
+    document.getElementById('m-desc').value = card ? card.desc : '';
+    document.getElementById('m-link').value = card ? card.link : '';
+    document.getElementById('m-target').value = card ? (card.target || '_blank') : '_blank';
+    selectedEmoji = card ? card.icon : '\ud83d\udcbb';
+    buildEmojiPicker();
+    document.getElementById('card-modal').classList.add('active');
+    document.getElementById('m-title').focus();
+}
+
+function closeModal() {
+    document.getElementById('card-modal').classList.remove('active');
+}
+
+function saveCard() {
+    const data = getData();
+    const card = {
+        icon: selectedEmoji,
+        title: document.getElementById('m-title').value || 'Untitled',
+        desc: document.getElementById('m-desc').value || '',
+        link: document.getElementById('m-link').value || '#',
+        target: document.getElementById('m-target').value
+    };
+    if (editCi !== null) {
+        data.sections[editSi].cards[editCi] = card;
+    } else {
+        data.sections[editSi].cards.push(card);
+    }
+    saveData(data);
+    closeModal();
+    renderDashboard();
+}
+
+function deleteCard(si, ci) {
+    if (!confirm('Delete this tool?')) return;
+    const data = getData();
+    data.sections[si].cards.splice(ci, 1);
+    saveData(data);
+    renderDashboard();
+}
+
+// ─── Keyboard shortcut: Escape to close modal ───
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeModal();
+});
+
+// ─── Init ───
+if (sessionStorage.getItem('vip_unlocked') === 'true') {
+    document.getElementById('lock-screen').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    resetTimer();
+    renderDashboard();
+}
+</script>
 </body>
 </html>
