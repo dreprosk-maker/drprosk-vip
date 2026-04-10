@@ -15,52 +15,233 @@
             background: #1a1a2e;
             color: #eee;
             min-height: 100vh;
+        }
+
+        /* ── Lock Screen ── */
+        #lock-screen {
             display: flex;
             align-items: center;
             justify-content: center;
+            min-height: 100vh;
+            flex-direction: column;
+            gap: 1.5rem;
         }
-        .container {
-            text-align: center;
-            padding: 2rem;
-        }
-        h1 {
-            font-size: 2.5rem;
-            margin-bottom: 0.5rem;
+        #lock-screen h1 {
+            font-size: 2rem;
             background: linear-gradient(135deg, #e2b04a, #f0d78c);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
-        p { color: #888; margin-bottom: 2rem; }
-        .tools { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; }
+        #lock-screen .lock-icon {
+            font-size: 3rem;
+            margin-bottom: -0.5rem;
+        }
+        #lock-screen form {
+            display: flex;
+            gap: 0.5rem;
+        }
+        #lock-screen input {
+            padding: 0.7rem 1.2rem;
+            border-radius: 8px;
+            border: 1px solid #333;
+            background: #16213e;
+            color: #eee;
+            font-size: 1rem;
+            outline: none;
+            width: 200px;
+            text-align: center;
+            letter-spacing: 0.15em;
+        }
+        #lock-screen input:focus { border-color: #e2b04a; }
+        #lock-screen input::placeholder { color: #555; letter-spacing: normal; }
+        #lock-screen button {
+            padding: 0.7rem 1.5rem;
+            border-radius: 8px;
+            border: none;
+            background: linear-gradient(135deg, #e2b04a, #c9952e);
+            color: #1a1a2e;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        #lock-screen button:hover { opacity: 0.85; }
+        .shake {
+            animation: shake 0.4s ease;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-8px); }
+            40%, 80% { transform: translateX(8px); }
+        }
+        #error-msg {
+            color: #e74c3c;
+            font-size: 0.85rem;
+            min-height: 1.2em;
+        }
+
+        /* ── Dashboard ── */
+        #dashboard {
+            display: none;
+            padding: 2rem;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .dash-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #333;
+        }
+        .dash-header h1 {
+            font-size: 1.8rem;
+            background: linear-gradient(135deg, #e2b04a, #f0d78c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .dash-header .logout {
+            background: none;
+            border: 1px solid #444;
+            color: #888;
+            padding: 0.4rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: border-color 0.2s, color 0.2s;
+        }
+        .dash-header .logout:hover { border-color: #e74c3c; color: #e74c3c; }
+
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+        }
         .tool-card {
             background: #16213e;
             border: 1px solid #333;
             border-radius: 12px;
-            padding: 1.5rem 2rem;
+            padding: 1.5rem;
             text-decoration: none;
             color: #eee;
             transition: transform 0.2s, border-color 0.2s;
-            min-width: 200px;
+            display: block;
         }
         .tool-card:hover {
             transform: translateY(-3px);
             border-color: #e2b04a;
         }
-        .tool-card h3 { margin-bottom: 0.3rem; }
-        .tool-card small { color: #666; }
+        .tool-card .icon { font-size: 1.8rem; margin-bottom: 0.5rem; }
+        .tool-card h3 { margin-bottom: 0.3rem; font-size: 1.1rem; }
+        .tool-card p { color: #666; font-size: 0.85rem; line-height: 1.4; }
+
+        .section-label {
+            color: #555;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.75rem;
+            margin-top: 1.5rem;
+        }
+        .section-label:first-of-type { margin-top: 0; }
     </style>
 </head>
 <body>
-    <div class="container">
+    <!-- Lock Screen -->
+    <div id="lock-screen">
+        <div class="lock-icon">&#128274;</div>
         <h1>VIP Portal</h1>
-        <p>Personal tools &amp; dashboards</p>
-        <div class="tools">
-            <!-- Add your personal tool links here -->
+        <form id="login-form" onsubmit="return tryLogin(event)">
+            <input type="password" id="pwd" placeholder="Password" autofocus autocomplete="off">
+            <button type="submit">Enter</button>
+        </form>
+        <div id="error-msg"></div>
+    </div>
+
+    <!-- Dashboard (hidden until login) -->
+    <div id="dashboard">
+        <div class="dash-header">
+            <h1>VIP Portal</h1>
+            <button class="logout" onclick="logout()">Lock</button>
+        </div>
+
+        <div class="section-label">Personal Tools</div>
+        <div class="tools-grid">
             <a class="tool-card" href="#">
-                <h3>Coming Soon</h3>
-                <small>Add your tools here</small>
+                <div class="icon">&#128176;</div>
+                <h3>Finance Tracker</h3>
+                <p>Budget, expenses, and investment tracking</p>
+            </a>
+            <a class="tool-card" href="#">
+                <div class="icon">&#128202;</div>
+                <h3>Analytics</h3>
+                <p>Personal metrics and reports</p>
+            </a>
+            <a class="tool-card" href="#">
+                <div class="icon">&#128221;</div>
+                <h3>Notes</h3>
+                <p>Private notes and documents</p>
+            </a>
+        </div>
+
+        <div class="section-label" style="margin-top:2rem">Quick Links</div>
+        <div class="tools-grid">
+            <a class="tool-card" href="https://drprosk.com" target="_blank">
+                <div class="icon">&#127968;</div>
+                <h3>Main Portal</h3>
+                <p>drprosk.com office tools</p>
+            </a>
+            <a class="tool-card" href="https://drprosk.com/printer-quality-tracker/" target="_blank">
+                <div class="icon">&#128424;</div>
+                <h3>Printer Quality Tracker</h3>
+                <p>3D printing quality control</p>
             </a>
         </div>
     </div>
+
+    <script>
+        // Simple hash check so the password isn't in plain text in source
+        function simpleHash(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash |= 0;
+            }
+            return hash;
+        }
+
+        const PASS_HASH = simpleHash('pop');
+
+        // Check if already unlocked this session
+        if (sessionStorage.getItem('vip_unlocked') === 'true') {
+            document.getElementById('lock-screen').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+        }
+
+        function tryLogin(e) {
+            e.preventDefault();
+            const input = document.getElementById('pwd');
+            if (simpleHash(input.value) === PASS_HASH) {
+                sessionStorage.setItem('vip_unlocked', 'true');
+                document.getElementById('lock-screen').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+            } else {
+                input.classList.add('shake');
+                document.getElementById('error-msg').textContent = 'Wrong password';
+                input.value = '';
+                setTimeout(() => input.classList.remove('shake'), 400);
+            }
+        }
+
+        function logout() {
+            sessionStorage.removeItem('vip_unlocked');
+            document.getElementById('dashboard').style.display = 'none';
+            document.getElementById('lock-screen').style.display = 'flex';
+            document.getElementById('pwd').value = '';
+            document.getElementById('error-msg').textContent = '';
+        }
+    </script>
 </body>
 </html>
