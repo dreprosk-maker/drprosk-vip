@@ -305,18 +305,30 @@
     appId:             '1:125896900326:web:bd209363fd4bfbd3680527'
   };
 
-  // ── ICE servers (non-Google STUN + free TURN; works in Russia) ───────────
+  // ── ICE servers ───────────────────────────────────────────────────────────
+  // Multiple STUN + TURN providers; TCP-443 fallbacks get through most firewalls
   var ICE_CFG = {
     iceServers: [
       { urls: 'stun:stun.cloudflare.com:3478' },
       { urls: 'stun:stun.relay.metered.ca:80' },
+      { urls: 'stun:stun.l.google.com:19302' },
+      // Metered open-relay TURN (UDP + TCP fallbacks)
       { urls: 'turn:openrelay.metered.ca:80',
         username: 'openrelayproject', credential: 'openrelayproject' },
       { urls: 'turn:openrelay.metered.ca:443',
         username: 'openrelayproject', credential: 'openrelayproject' },
       { urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-        username: 'openrelayproject', credential: 'openrelayproject' }
-    ]
+        username: 'openrelayproject', credential: 'openrelayproject' },
+      // numb.viagenie.ca — well-known public TURN
+      { urls: 'turn:numb.viagenie.ca',
+        username: 'webrtc@live.com', credential: 'muazkh' },
+      // freestun — another public TURN
+      { urls: 'turn:freestun.net:3479',
+        username: 'free', credential: 'free' },
+      { urls: 'turn:freestun.net:5350',
+        username: 'free', credential: 'free' }
+    ],
+    iceCandidatePoolSize: 10
   };
 
   // ── DOM ───────────────────────────────────────────────────────────────────
@@ -341,6 +353,7 @@
   var roomRef      = null;
   var fbListeners  = [];   // [{ref, event, cb}]
   var timerInterval = null;
+  var connTimeout  = null;  // connection watchdog
   var callStart    = 0;
   var analyserNode = null;
   var animFrame    = null;
@@ -449,8 +462,25 @@
     fbListeners = [];
   }
 
+  // ── Connection watchdog ───────────────────────────────────────────────────
+  function startConnTimeout() {
+    clearTimeout(connTimeout);
+    connTimeout = setTimeout(function() {
+      // If still not connected after 40s, give up with a clear message
+      var iceState = pc ? pc.iceConnectionState : '';
+      if (iceState !== 'connected' && iceState !== 'completed') {
+        // "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u043e\u0435\u0434\u0438\u043d\u0438\u0442\u044c\u0441\u044f \u0437\u0430 40 \u0441\u0435\u043a\u0443\u043d\u0434. ..."
+        // = "Не удалось соединиться за 40 секунд. Попробуйте ещё раз."
+        var savedError = '\u26A0\uFE0F \u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u043e\u0435\u0434\u0438\u043d\u0438\u0442\u044c\u0441\u044f \u0437\u0430 40 \u0441\u0435\u043a\u0443\u043d\u0434. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437.';
+        endCall();
+        showError(savedError);
+      }
+    }, 40000);
+  }
+
   // ── Call teardown ─────────────────────────────────────────────────────────
   function endCall() {
+    clearTimeout(connTimeout);
     fbRemoveAll();
     if (pc) { try { pc.close(); } catch(e) {} pc = null; }
     if (localStream) {
@@ -501,6 +531,7 @@
     pc.oniceconnectionstatechange = function() {
       var s = pc ? pc.iceConnectionState : '';
       if (s === 'connected' || s === 'completed') {
+        clearTimeout(connTimeout);  // ICE succeeded — cancel watchdog
         if (statusDot.className.indexOf('dot-connected') === -1) {
           setStatus('connected', '\u0412\u044b \u043d\u0430 \u0441\u0432\u044f\u0437\u0438! \uD83C\uDF89');
           hangupBtn.classList.remove('hidden');
@@ -510,6 +541,7 @@
         }
       } else if (s === 'failed') {
         endCall();
+        showError('\u26A0\uFE0F \u0421\u043e\u0435\u0434\u0438\u043d\u0435\u043d\u0438\u0435 \u043d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437.');
       }
     };
 
@@ -531,20 +563,35 @@
     // "\u0416\u0434\u0451\u043c \u0432\u0442\u043e\u0440\u043e\u0433\u043e \u0443\u0447\u0430\u0441\u0442\u043d\u0438\u043a\u0430..." = "Ждём второго участника..."
     setStatus('waiting', '\u0416\u0434\u0451\u043c \u0432\u0442\u043e\u0440\u043e\u0433\u043e \u0443\u0447\u0430\u0441\u0442\u043d\u0438\u043a\u0430...');
 
-    // Wait for answer
-    fbListen(roomRef.child('answer'), 'value', function(snap) {
-      if (snap.exists() && pc && !pc.currentRemoteDescription) {
-        pc.setRemoteDescription(new RTCSessionDescription(snap.val())).catch(function(e) {
-          console.error('setRemoteDescription error', e);
-        });
+    // IMPORTANT: queue callee ICE candidates until remote description is set.
+    // addIceCandidate() throws if called before setRemoteDescription() — we must not drop them.
+    var calleeCandQueue = [];
+    var remoteDescReady = false;
+
+    function drainCalleeCands() {
+      calleeCandQueue.forEach(function(c) {
+        if (pc) pc.addIceCandidate(new RTCIceCandidate(c)).catch(function() {});
+      });
+      calleeCandQueue = [];
+    }
+
+    // Collect callee candidates immediately (they may arrive before the answer)
+    fbListen(roomRef.child('calleeCandidates'), 'child_added', function(snap) {
+      if (!snap.exists() || !pc) return;
+      if (remoteDescReady) {
+        pc.addIceCandidate(new RTCIceCandidate(snap.val())).catch(function() {});
+      } else {
+        calleeCandQueue.push(snap.val());
       }
     });
 
-    // Receive callee ICE candidates
-    fbListen(roomRef.child('calleeCandidates'), 'child_added', function(snap) {
-      if (snap.exists() && pc) {
-        pc.addIceCandidate(new RTCIceCandidate(snap.val())).catch(function() {});
-      }
+    // Wait for answer — set remote desc THEN drain the queued candidates
+    fbListen(roomRef.child('answer'), 'value', function(snap) {
+      if (!snap.exists() || !pc || pc.currentRemoteDescription) return;
+      pc.setRemoteDescription(new RTCSessionDescription(snap.val())).then(function() {
+        remoteDescReady = true;
+        drainCalleeCands();
+      }).catch(function(e) { console.error('setRemoteDesc(answer) failed', e); });
     });
   }
 
@@ -629,6 +676,8 @@
         // We are the CALLEE — read offer, send answer
         await startAsCallee(offerSnap.val());
       }
+      // Start watchdog — if ICE doesn't connect in 40s, show error
+      startConnTimeout();
     } catch (err) {
       console.error('Signaling error:', err);
       // Reset UI
