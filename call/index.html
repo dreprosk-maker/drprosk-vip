@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Голосовой звонок</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f0f4f8;
+    color: #1a202c;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 420px;
+  }
+
+  .phone-icon {
+    text-align: center;
+    font-size: 4rem;
+    margin-bottom: 0.4rem;
+  }
+
+  h1 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 0.4rem;
+    color: #2d3748;
+  }
+
+  .subtitle {
+    text-align: center;
+    color: #718096;
+    font-size: 1.15rem;
+    margin-bottom: 1.8rem;
+    line-height: 1.6;
+  }
+
+  .card {
+    background: #fff;
+    border-radius: 20px;
+    padding: 2rem 1.8rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 14px rgba(0,0,0,0.09);
+  }
+
+  .code-label {
+    text-align: center;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #4a5568;
+    margin-bottom: 1.2rem;
+  }
+
+  /* Three big digit boxes */
+  .digits {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 1.6rem;
+  }
+
+  .digit-input {
+    width: 90px;
+    height: 110px;
+    text-align: center;
+    font-size: 3.5rem;
+    font-weight: 700;
+    border: 3px solid #cbd5e0;
+    border-radius: 16px;
+    background: #f7fafc;
+    color: #2d3748;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    caret-color: transparent;
+    /* prevent mobile keyboard zoom */
+    font-size: clamp(2rem, 8vw, 3.5rem);
+  }
+
+  .digit-input:focus {
+    border-color: #4299e1;
+    box-shadow: 0 0 0 4px rgba(66,153,225,0.2);
+    background: #ebf8ff;
+  }
+
+  /* On-screen number pad */
+  .numpad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.7rem;
+    margin-bottom: 1.4rem;
+  }
+
+  .numpad-btn {
+    padding: 1rem 0;
+    font-size: 1.8rem;
+    font-weight: 700;
+    background: #edf2f7;
+    color: #2d3748;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .numpad-btn:hover { background: #e2e8f0; }
+  .numpad-btn:active { background: #cbd5e0; transform: scale(0.95); }
+
+  .numpad-btn.del {
+    font-size: 1.4rem;
+    background: #fed7d7;
+    color: #c53030;
+  }
+  .numpad-btn.del:hover { background: #feb2b2; }
+
+  .numpad-btn.zero {
+    grid-column: 2;
+  }
+
+  button.btn-call {
+    width: 100%;
+    padding: 1.3rem;
+    font-size: 1.6rem;
+    font-weight: 700;
+    background: #38a169;
+    color: #fff;
+    border: none;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    letter-spacing: 0.02em;
+  }
+  button.btn-call:hover { background: #2f855a; }
+  button.btn-call:active { transform: scale(0.97); }
+  button.btn-call:disabled {
+    background: #a0aec0;
+    color: #e2e8f0;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  button.btn-hangup {
+    width: 100%;
+    padding: 1.3rem;
+    font-size: 1.6rem;
+    font-weight: 700;
+    background: #e53e3e;
+    color: #fff;
+    border: none;
+    border-radius: 16px;
+    cursor: pointer;
+    margin-top: 1.2rem;
+    transition: background 0.2s, transform 0.1s;
+  }
+  button.btn-hangup:hover { background: #c53030; }
+  button.btn-hangup:active { transform: scale(0.97); }
+
+  .status-area {
+    text-align: center;
+    padding: 1.5rem 0 0.5rem;
+  }
+
+  .status-dot {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    margin-right: 0.5rem;
+    vertical-align: middle;
+  }
+
+  .dot-waiting { background: #ecc94b; animation: pulse 1.5s infinite; }
+  .dot-connected { background: #38a169; }
+  .dot-off { background: #a0aec0; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.25; }
+  }
+
+  .status-text {
+    font-size: 1.35rem;
+    vertical-align: middle;
+    color: #4a5568;
+  }
+
+  .timer {
+    font-size: 3.2rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    margin-top: 0.8rem;
+    color: #2b6cb0;
+  }
+
+  .visualizer {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 4px;
+    height: 50px;
+    margin-top: 1rem;
+  }
+
+  .bar {
+    width: 7px;
+    background: #4299e1;
+    border-radius: 3px;
+    transition: height 0.05s;
+    min-height: 4px;
+  }
+
+  .hint {
+    text-align: center;
+    color: #a0aec0;
+    font-size: 1rem;
+    margin-top: 1rem;
+    line-height: 1.6;
+  }
+
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="phone-icon">&#128222;</div>
+  <h1>Голосовой звонок</h1>
+  <p class="subtitle">Введите ваш секретный код из трёх цифр<br>и нажмите «Позвонить»</p>
+
+  <!-- Join card -->
+  <div class="card" id="joinCard">
+    <div class="code-label">Введите код:</div>
+
+    <div class="digits">
+      <input class="digit-input" id="d0" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" readonly>
+      <input class="digit-input" id="d1" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" readonly>
+      <input class="digit-input" id="d2" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" readonly>
+    </div>
+
+    <!-- On-screen numpad (easy for touch / elderly) -->
+    <div class="numpad">
+      <button class="numpad-btn" data-n="1">1</button>
+      <button class="numpad-btn" data-n="2">2</button>
+      <button class="numpad-btn" data-n="3">3</button>
+      <button class="numpad-btn" data-n="4">4</button>
+      <button class="numpad-btn" data-n="5">5</button>
+      <button class="numpad-btn" data-n="6">6</button>
+      <button class="numpad-btn" data-n="7">7</button>
+      <button class="numpad-btn" data-n="8">8</button>
+      <button class="numpad-btn" data-n="9">9</button>
+      <button class="numpad-btn del" id="delBtn">&#9003;</button>
+      <button class="numpad-btn zero" data-n="0">0</button>
+    </div>
+
+    <button class="btn-call" id="joinBtn" disabled>Позвонить</button>
+  </div>
+
+  <!-- Status card (shown while in/after call) -->
+  <div class="card hidden" id="callCard">
+    <div class="status-area">
+      <span class="status-dot dot-waiting" id="statusDot"></span>
+      <span class="status-text" id="statusText">Ждём второго участника...</span>
+      <div class="timer hidden" id="timer">00:00</div>
+      <div class="visualizer hidden" id="visualizer"></div>
+    </div>
+    <button class="btn-hangup hidden" id="hangupBtn">Положить трубку</button>
+  </div>
+
+  <p class="hint" id="hintText">Договоритесь о коде заранее — оба вводят одно и то же.</p>
+
+  <audio id="remoteAudio" autoplay></audio>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+
+  const digits      = [$('d0'), $('d1'), $('d2')];
+  const joinBtn     = $('joinBtn');
+  const joinCard    = $('joinCard');
+  const callCard    = $('callCard');
+  const statusDot   = $('statusDot');
+  const statusText  = $('statusText');
+  const timerEl     = $('timer');
+  const hangupBtn   = $('hangupBtn');
+  const visualizer  = $('visualizer');
+  const remoteAudio = $('remoteAudio');
+  const hintText    = $('hintText');
+  const delBtn      = $('delBtn');
+
+  let peer = null;
+  let currentCall = null;
+  let localStream = null;
+  let timerInterval = null;
+  let callStart = 0;
+  let analyserNode = null;
+  let animFrame = null;
+
+  // --- Numpad logic ---
+
+  function getCode() {
+    return digits.map(d => d.value).join('');
+  }
+
+  function updateCallBtn() {
+    joinBtn.disabled = getCode().length < 3;
+  }
+
+  document.querySelectorAll('.numpad-btn[data-n]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const code = getCode();
+      if (code.length >= 3) return;
+      digits[code.length].value = btn.dataset.n;
+      updateCallBtn();
+    });
+  });
+
+  delBtn.addEventListener('click', () => {
+    const code = getCode();
+    if (code.length === 0) return;
+    digits[code.length - 1].value = '';
+    updateCallBtn();
+  });
+
+  // Also allow physical keyboard for desktop use
+  document.addEventListener('keydown', e => {
+    if (currentCall || peer) return; // ignore during call
+    if (e.key >= '0' && e.key <= '9') {
+      const code = getCode();
+      if (code.length < 3) {
+        digits[code.length].value = e.key;
+        updateCallBtn();
+      }
+    } else if (e.key === 'Backspace') {
+      const code = getCode();
+      if (code.length > 0) {
+        digits[code.length - 1].value = '';
+        updateCallBtn();
+      }
+    } else if (e.key === 'Enter') {
+      if (!joinBtn.disabled) join();
+    }
+  });
+
+  // --- Helpers ---
+
+  function roomToPeerId(code, slot) {
+    return `vc-${code}-${slot}`;
+  }
+
+  function setStatus(state, text) {
+    statusDot.className = 'status-dot ' + ({
+      waiting: 'dot-waiting',
+      connected: 'dot-connected',
+      off: 'dot-off'
+    }[state] || 'dot-off');
+    statusText.textContent = text;
+  }
+
+  function startTimer() {
+    callStart = Date.now();
+    timerEl.classList.remove('hidden');
+    timerInterval = setInterval(() => {
+      const s = Math.floor((Date.now() - callStart) / 1000);
+      const m = Math.floor(s / 60);
+      timerEl.textContent =
+        String(m).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+    }, 500);
+  }
+
+  function stopTimer() {
+    clearInterval(timerInterval);
+    timerEl.classList.add('hidden');
+  }
+
+  function setupVisualizer(stream) {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = ctx.createMediaStreamSource(stream);
+    analyserNode = ctx.createAnalyser();
+    analyserNode.fftSize = 64;
+    src.connect(analyserNode);
+
+    const count = 16;
+    visualizer.innerHTML = '';
+    for (let i = 0; i < count; i++) {
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+      visualizer.appendChild(bar);
+    }
+    visualizer.classList.remove('hidden');
+
+    const bars = visualizer.querySelectorAll('.bar');
+    const data = new Uint8Array(analyserNode.frequencyBinCount);
+
+    function draw() {
+      analyserNode.getByteFrequencyData(data);
+      bars.forEach((bar, i) => {
+        const val = data[i] || 0;
+        bar.style.height = Math.max(4, (val / 255) * 48) + 'px';
+      });
+      animFrame = requestAnimationFrame(draw);
+    }
+    draw();
+  }
+
+  function stopVisualizer() {
+    cancelAnimationFrame(animFrame);
+    visualizer.classList.add('hidden');
+  }
+
+  function handleCall(call) {
+    currentCall = call;
+
+    call.on('stream', remoteStream => {
+      remoteAudio.srcObject = remoteStream;
+      setStatus('connected', 'Вы на связи! 🎉');
+      hangupBtn.classList.remove('hidden');
+      hintText.classList.add('hidden');
+      startTimer();
+      setupVisualizer(remoteStream);
+    });
+
+    call.on('close', endCall);
+    call.on('error', err => {
+      console.error('Call error', err);
+      endCall();
+    });
+  }
+
+  function endCall() {
+    if (currentCall) { currentCall.close(); currentCall = null; }
+    if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+    if (peer) { peer.destroy(); peer = null; }
+    remoteAudio.srcObject = null;
+    stopTimer();
+    stopVisualizer();
+    hangupBtn.classList.add('hidden');
+    callCard.classList.add('hidden');
+    setStatus('off', 'Звонок завершён');
+    // Reset digits
+    digits.forEach(d => d.value = '');
+    updateCallBtn();
+    joinCard.classList.remove('hidden');
+    hintText.classList.remove('hidden');
+  }
+
+  hangupBtn.addEventListener('click', endCall);
+
+  async function join() {
+    const code = getCode();
+    if (code.length < 3) return;
+
+    joinCard.classList.add('hidden');
+    callCard.classList.remove('hidden');
+    setStatus('waiting', 'Включаем микрофон...');
+
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    } catch (e) {
+      setStatus('off', 'Нет доступа к микрофону.\nРазрешите доступ и попробуйте снова.');
+      callCard.classList.add('hidden');
+      joinCard.classList.remove('hidden');
+      return;
+    }
+
+    const idA = roomToPeerId(code, 'a');
+    const idB = roomToPeerId(code, 'b');
+
+    setStatus('waiting', 'Подключаемся...');
+
+    peer = new Peer(idA, { debug: 0 });
+
+    peer.on('open', () => {
+      setStatus('waiting', 'Ждём второго участника...');
+      peer.on('call', incomingCall => {
+        incomingCall.answer(localStream);
+        handleCall(incomingCall);
+      });
+    });
+
+    peer.on('error', err => {
+      if (err.type === 'unavailable-id') {
+        peer.destroy();
+        peer = new Peer(idB, { debug: 0 });
+
+        peer.on('open', () => {
+          setStatus('waiting', 'Соединяем...');
+          const outgoing = peer.call(idA, localStream);
+          handleCall(outgoing);
+        });
+
+        peer.on('error', err2 => {
+          console.error('Peer error (B)', err2);
+          setStatus('off', 'Не удалось подключиться. Попробуйте ещё раз.');
+          callCard.classList.add('hidden');
+          joinCard.classList.remove('hidden');
+          digits.forEach(d => d.value = '');
+          updateCallBtn();
+        });
+
+        peer.on('call', incomingCall => {
+          incomingCall.answer(localStream);
+          handleCall(incomingCall);
+        });
+      } else {
+        console.error('Peer error (A)', err);
+        setStatus('off', 'Нет соединения с интернетом');
+        callCard.classList.add('hidden');
+        joinCard.classList.remove('hidden');
+        digits.forEach(d => d.value = '');
+        updateCallBtn();
+      }
+    });
+  }
+
+  joinBtn.addEventListener('click', join);
+})();
+</script>
+</body>
+</html>
