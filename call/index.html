@@ -438,7 +438,7 @@
 
     call.on('stream', remoteStream => {
       remoteAudio.srcObject = remoteStream;
-      setStatus('connected', 'Вына на связи! 🎉'Х);
+      setStatus('connected', 'Вы на связи! \u{1F389}');
       hangupBtn.classList.remove('hidden');
       hintText.classList.add('hidden');
       startTimer();
@@ -483,7 +483,7 @@
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       callCard.classList.add('hidden');
       joinCard.classList.remove('hidden');
-      errorBanner.textContent = '⚠️ Браузер заблокировал микрофон. Убедитесь, что адрес начинается с https://, а не http://';
+      errorBanner.textContent = '\u26A0\uFE0F Браузер заблокировал микрофон. Убедитесь, что адрес начинается с https://, а не http://';
       errorBanner.classList.remove('hidden');
       return;
     }
@@ -494,11 +494,11 @@
       callCard.classList.add('hidden');
       joinCard.classList.remove('hidden');
       if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
-        errorBanner.textContent = '🎤 Нужно разрешить доступ к микрофону. Нажмите «Разрешить» когда браузер спросит.';
+        errorBanner.textContent = '\u{1F3A4} Нужно разрешить доступ к микрофону. Нажмите «Разрешить» когда браузер спросит.';
       } else if (e.name === 'NotFoundError') {
-        errorBanner.textContent = '🎤 Микрофон не найден. Проверьте, что он подключён.';
+        errorBanner.textContent = '\u{1F3A4} Микрофон не найден. Проверьте, что он подключён.';
       } else {
-        errorBanner.textContent = '⚠️ Не удалось включить микрофон. Попробуйте перезагрузить страницу.';
+        errorBanner.textContent = '\u26A0\uFE0F Не удалось включить микрофон. Попробуйте перезагрузить страницу.';
       }
       errorBanner.classList.remove('hidden');
       return;
@@ -533,7 +533,7 @@
 
         peer.on('error', err2 => {
           console.error('Peer error (B)', err2);
-          setStatus('off', 'Не удалось подключитьсь. Попробуйте ещё раз.');
+          setStatus('off', 'Не удалось подключиться. Попробуйте ещё раз.');
           callCard.classList.add('hidden');
           joinCard.classList.remove('hidden');
           digits.forEach(d => d.value = '');
