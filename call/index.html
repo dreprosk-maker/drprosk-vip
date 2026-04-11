@@ -533,11 +533,12 @@
 
         peer.on('error', err2 => {
           console.error('Peer error (B)', err2);
-          setStatus('off', 'Не удалось подключиться. Попробуйте ещё раз.');
           callCard.classList.add('hidden');
           joinCard.classList.remove('hidden');
           digits.forEach(d => d.value = '');
           updateCallBtn();
+          errorBanner.textContent = '\u26A0\uFE0F \u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u043e\u0435\u0434\u0438\u043d\u0435\u043d\u0438\u044f: ' + (err2.type || err2.message || err2) + '. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437.';
+          errorBanner.classList.remove('hidden');
         });
 
         peer.on('call', incomingCall => {
@@ -546,11 +547,12 @@
         });
       } else {
         console.error('Peer error (A)', err);
-        setStatus('off', 'Нет соединения с интернетом');
         callCard.classList.add('hidden');
         joinCard.classList.remove('hidden');
         digits.forEach(d => d.value = '');
         updateCallBtn();
+        errorBanner.textContent = '\u26A0\uFE0F \u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u043e\u0435\u0434\u0438\u043d\u0435\u043d\u0438\u044f: ' + (err.type || err.message || err) + '. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437.';
+        errorBanner.classList.remove('hidden');
       }
     });
   }
