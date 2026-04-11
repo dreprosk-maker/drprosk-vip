@@ -510,7 +510,21 @@
 
     setStatus('waiting', 'Подключаемся...');
 
-    peer = new Peer(idA, { debug: 0 });
+    // Use non-Google STUN + free TURN relay (works in Russia and behind firewalls)
+    const peerCfg = {
+      debug: 0,
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.cloudflare.com:3478' },
+          { urls: 'stun:stun.relay.metered.ca:80' },
+          { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+          { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+          { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+        ]
+      }
+    };
+
+    peer = new Peer(idA, peerCfg);
 
     peer.on('open', () => {
       setStatus('waiting', 'Ждём второго участника...');
@@ -523,7 +537,7 @@
     peer.on('error', err => {
       if (err.type === 'unavailable-id') {
         peer.destroy();
-        peer = new Peer(idB, { debug: 0 });
+        peer = new Peer(idB, peerCfg);
 
         peer.on('open', () => {
           setStatus('waiting', 'Соединяем...');
