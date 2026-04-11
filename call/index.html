@@ -4,7 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Голосовой звонок</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+<!-- Firebase compat SDKs — accessible from Russia, no PeerJS signalling server needed -->
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -62,7 +64,6 @@
     margin-bottom: 1.2rem;
   }
 
-  /* Three big digit boxes */
   .digits {
     display: flex;
     justify-content: center;
@@ -74,7 +75,6 @@
     width: 90px;
     height: 110px;
     text-align: center;
-    font-size: 3.5rem;
     font-weight: 700;
     border: 3px solid #cbd5e0;
     border-radius: 16px;
@@ -83,7 +83,6 @@
     outline: none;
     transition: border-color 0.2s, box-shadow 0.2s;
     caret-color: transparent;
-    /* prevent mobile keyboard zoom */
     font-size: clamp(2rem, 8vw, 3.5rem);
   }
 
@@ -93,7 +92,6 @@
     background: #ebf8ff;
   }
 
-  /* On-screen number pad */
   .numpad {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -124,9 +122,7 @@
   }
   .numpad-btn.del:hover { background: #feb2b2; }
 
-  .numpad-btn.zero {
-    grid-column: 2;
-  }
+  .numpad-btn.zero { grid-column: 2; }
 
   button.btn-call {
     width: 100%;
@@ -180,13 +176,13 @@
     vertical-align: middle;
   }
 
-  .dot-waiting { background: #ecc94b; animation: pulse 1.5s infinite; }
+  .dot-waiting   { background: #ecc94b; animation: pulse 1.5s infinite; }
   .dot-connected { background: #38a169; }
-  .dot-off { background: #a0aec0; }
+  .dot-off       { background: #a0aec0; }
 
   @keyframes pulse {
     0%, 100% { opacity: 1; }
-    50% { opacity: 0.25; }
+    50%       { opacity: 0.25; }
   }
 
   .status-text {
@@ -259,7 +255,6 @@
       <input class="digit-input" id="d2" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" readonly>
     </div>
 
-    <!-- On-screen numpad (easy for touch / elderly) -->
     <div class="numpad">
       <button class="numpad-btn" data-n="1">1</button>
       <button class="numpad-btn" data-n="2">2</button>
@@ -292,140 +287,150 @@
 
   <p class="hint" id="hintText">Договоритесь о коде заранее — оба вводят одно и то же.</p>
 
-  <audio id="remoteAudio" autoplay></audio>
+  <audio id="remoteAudio" autoplay playsinline></audio>
 </div>
 
 <script>
 (() => {
-  const $ = id => document.getElementById(id);
+  'use strict';
 
-  const digits      = [$('d0'), $('d1'), $('d2')];
-  const joinBtn     = $('joinBtn');
-  const joinCard    = $('joinCard');
-  const callCard    = $('callCard');
-  const statusDot   = $('statusDot');
-  const statusText  = $('statusText');
-  const timerEl     = $('timer');
-  const hangupBtn   = $('hangupBtn');
-  const visualizer  = $('visualizer');
-  const remoteAudio = $('remoteAudio');
-  const hintText    = $('hintText');
-  const delBtn      = $('delBtn');
-  const errorBanner = $('errorBanner');
+  // ── Firebase configuration ────────────────────────────────────────────────
+  var FB_CONFIG = {
+    apiKey:            'AIzaSyCyBaPXKUiY8qZhgFJZihzsbrmaG5X-My8',
+    authDomain:        'drprosk-call.firebaseapp.com',
+    databaseURL:       'https://drprosk-call-default-rtdb.firebaseio.com',
+    projectId:         'drprosk-call',
+    storageBucket:     'drprosk-call.firebasestorage.app',
+    messagingSenderId: '125896900326',
+    appId:             '1:125896900326:web:bd209363fd4bfbd3680527'
+  };
 
-  let peer = null;
-  let currentCall = null;
-  let localStream = null;
-  let timerInterval = null;
-  let callStart = 0;
-  let analyserNode = null;
-  let animFrame = null;
+  // ── ICE servers (non-Google STUN + free TURN; works in Russia) ───────────
+  var ICE_CFG = {
+    iceServers: [
+      { urls: 'stun:stun.cloudflare.com:3478' },
+      { urls: 'stun:stun.relay.metered.ca:80' },
+      { urls: 'turn:openrelay.metered.ca:80',
+        username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443',
+        username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+        username: 'openrelayproject', credential: 'openrelayproject' }
+    ]
+  };
 
-  // --- Numpad logic ---
+  // ── DOM ───────────────────────────────────────────────────────────────────
+  var $ = function(id) { return document.getElementById(id); };
+  var digits      = [$('d0'), $('d1'), $('d2')];
+  var joinBtn     = $('joinBtn');
+  var joinCard    = $('joinCard');
+  var callCard    = $('callCard');
+  var statusDot   = $('statusDot');
+  var statusText  = $('statusText');
+  var timerEl     = $('timer');
+  var hangupBtn   = $('hangupBtn');
+  var visualizer  = $('visualizer');
+  var remoteAudio = $('remoteAudio');
+  var hintText    = $('hintText');
+  var delBtn      = $('delBtn');
+  var errorBanner = $('errorBanner');
 
-  function getCode() {
-    return digits.map(d => d.value).join('');
-  }
+  // ── State ─────────────────────────────────────────────────────────────────
+  var pc           = null;
+  var localStream  = null;
+  var roomRef      = null;
+  var fbListeners  = [];   // [{ref, event, cb}]
+  var timerInterval = null;
+  var callStart    = 0;
+  var analyserNode = null;
+  var animFrame    = null;
 
-  function updateCallBtn() {
-    joinBtn.disabled = getCode().length < 3;
-  }
+  // ── Numpad ────────────────────────────────────────────────────────────────
+  function getCode() { return digits.map(function(d) { return d.value; }).join(''); }
+  function updateCallBtn() { joinBtn.disabled = getCode().length < 3; }
 
-  document.querySelectorAll('.numpad-btn[data-n]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const code = getCode();
+  document.querySelectorAll('.numpad-btn[data-n]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var code = getCode();
       if (code.length >= 3) return;
       digits[code.length].value = btn.dataset.n;
       updateCallBtn();
     });
   });
 
-  delBtn.addEventListener('click', () => {
-    const code = getCode();
-    if (code.length === 0) return;
+  delBtn.addEventListener('click', function() {
+    var code = getCode();
+    if (!code.length) return;
     digits[code.length - 1].value = '';
     updateCallBtn();
   });
 
-  // Also allow physical keyboard for desktop use
-  document.addEventListener('keydown', e => {
-    if (currentCall || peer) return; // ignore during call
+  document.addEventListener('keydown', function(e) {
+    if (pc) return;
     if (e.key >= '0' && e.key <= '9') {
-      const code = getCode();
-      if (code.length < 3) {
-        digits[code.length].value = e.key;
-        updateCallBtn();
-      }
+      var code = getCode();
+      if (code.length < 3) { digits[code.length].value = e.key; updateCallBtn(); }
     } else if (e.key === 'Backspace') {
-      const code = getCode();
-      if (code.length > 0) {
-        digits[code.length - 1].value = '';
-        updateCallBtn();
-      }
+      var code = getCode();
+      if (code.length > 0) { digits[code.length - 1].value = ''; updateCallBtn(); }
     } else if (e.key === 'Enter') {
       if (!joinBtn.disabled) join();
     }
   });
 
-  // --- Helpers ---
-
-  function roomToPeerId(code, slot) {
-    return `vc-${code}-${slot}`;
-  }
-
+  // ── UI helpers ────────────────────────────────────────────────────────────
   function setStatus(state, text) {
-    statusDot.className = 'status-dot ' + ({
-      waiting: 'dot-waiting',
-      connected: 'dot-connected',
-      off: 'dot-off'
-    }[state] || 'dot-off');
+    var cls = { waiting: 'dot-waiting', connected: 'dot-connected', off: 'dot-off' };
+    statusDot.className = 'status-dot ' + (cls[state] || 'dot-off');
     statusText.textContent = text;
   }
+
+  function showError(msg) {
+    errorBanner.textContent = msg;
+    errorBanner.classList.remove('hidden');
+  }
+
+  function hideError() { errorBanner.classList.add('hidden'); }
 
   function startTimer() {
     callStart = Date.now();
     timerEl.classList.remove('hidden');
-    timerInterval = setInterval(() => {
-      const s = Math.floor((Date.now() - callStart) / 1000);
-      const m = Math.floor(s / 60);
+    timerInterval = setInterval(function() {
+      var s = Math.floor((Date.now() - callStart) / 1000);
       timerEl.textContent =
-        String(m).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+        String(Math.floor(s / 60)).padStart(2, '0') + ':' +
+        String(s % 60).padStart(2, '0');
     }, 500);
   }
 
-  function stopTimer() {
-    clearInterval(timerInterval);
-    timerEl.classList.add('hidden');
-  }
+  function stopTimer() { clearInterval(timerInterval); timerEl.classList.add('hidden'); }
 
   function setupVisualizer(stream) {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const src = ctx.createMediaStreamSource(stream);
-    analyserNode = ctx.createAnalyser();
-    analyserNode.fftSize = 64;
-    src.connect(analyserNode);
-
-    const count = 16;
-    visualizer.innerHTML = '';
-    for (let i = 0; i < count; i++) {
-      const bar = document.createElement('div');
-      bar.className = 'bar';
-      visualizer.appendChild(bar);
-    }
-    visualizer.classList.remove('hidden');
-
-    const bars = visualizer.querySelectorAll('.bar');
-    const data = new Uint8Array(analyserNode.frequencyBinCount);
-
-    function draw() {
-      analyserNode.getByteFrequencyData(data);
-      bars.forEach((bar, i) => {
-        const val = data[i] || 0;
-        bar.style.height = Math.max(4, (val / 255) * 48) + 'px';
-      });
-      animFrame = requestAnimationFrame(draw);
-    }
-    draw();
+    if (!stream) return;
+    try {
+      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      var src = ctx.createMediaStreamSource(stream);
+      analyserNode = ctx.createAnalyser();
+      analyserNode.fftSize = 64;
+      src.connect(analyserNode);
+      visualizer.innerHTML = '';
+      for (var i = 0; i < 16; i++) {
+        var bar = document.createElement('div');
+        bar.className = 'bar';
+        visualizer.appendChild(bar);
+      }
+      visualizer.classList.remove('hidden');
+      var bars = visualizer.querySelectorAll('.bar');
+      var data = new Uint8Array(analyserNode.frequencyBinCount);
+      function draw() {
+        analyserNode.getByteFrequencyData(data);
+        bars.forEach(function(bar, i) {
+          bar.style.height = Math.max(4, ((data[i] || 0) / 255) * 48) + 'px';
+        });
+        animFrame = requestAnimationFrame(draw);
+      }
+      draw();
+    } catch (e) { /* visualizer is cosmetic; ignore errors */ }
   }
 
   function stopVisualizer() {
@@ -433,37 +438,34 @@
     visualizer.classList.add('hidden');
   }
 
-  function handleCall(call) {
-    currentCall = call;
-
-    call.on('stream', remoteStream => {
-      remoteAudio.srcObject = remoteStream;
-      setStatus('connected', 'Вы на связи! \u{1F389}');
-      hangupBtn.classList.remove('hidden');
-      hintText.classList.add('hidden');
-      startTimer();
-      setupVisualizer(remoteStream);
-    });
-
-    call.on('close', endCall);
-    call.on('error', err => {
-      console.error('Call error', err);
-      endCall();
-    });
+  // ── Firebase listener management ─────────────────────────────────────────
+  function fbListen(ref, event, cb) {
+    ref.on(event, cb);
+    fbListeners.push({ ref: ref, event: event, cb: cb });
   }
 
+  function fbRemoveAll() {
+    fbListeners.forEach(function(l) { l.ref.off(l.event, l.cb); });
+    fbListeners = [];
+  }
+
+  // ── Call teardown ─────────────────────────────────────────────────────────
   function endCall() {
-    if (currentCall) { currentCall.close(); currentCall = null; }
-    if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
-    if (peer) { peer.destroy(); peer = null; }
+    fbRemoveAll();
+    if (pc) { try { pc.close(); } catch(e) {} pc = null; }
+    if (localStream) {
+      localStream.getTracks().forEach(function(t) { t.stop(); });
+      localStream = null;
+    }
     remoteAudio.srcObject = null;
+    if (roomRef) { roomRef.remove().catch(function() {}); roomRef = null; }
     stopTimer();
     stopVisualizer();
     hangupBtn.classList.add('hidden');
     callCard.classList.add('hidden');
-    setStatus('off', 'Звонок завершён');
-    // Reset digits
-    digits.forEach(d => d.value = '');
+    // "\u0417\u0432\u043e\u043d\u043e\u043a \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043d" = "Звонок завершён"
+    setStatus('off', '\u0417\u0432\u043e\u043d\u043e\u043a \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043d');
+    digits.forEach(function(d) { d.value = ''; });
     updateCallBtn();
     joinCard.classList.remove('hidden');
     hintText.classList.remove('hidden');
@@ -471,104 +473,177 @@
 
   hangupBtn.addEventListener('click', endCall);
 
+  // ── Create RTCPeerConnection ───────────────────────────────────────────────
+  function createPC() {
+    pc = new RTCPeerConnection(ICE_CFG);
+
+    localStream.getTracks().forEach(function(t) { pc.addTrack(t, localStream); });
+
+    pc.ontrack = function(e) {
+      remoteAudio.srcObject = e.streams[0];
+    };
+
+    pc.onconnectionstatechange = function() {
+      var s = pc ? pc.connectionState : '';
+      if (s === 'connected') {
+        // "\u0412\u044b \u043d\u0430 \u0441\u0432\u044f\u0437\u0438!" = "Вы на связи!"
+        setStatus('connected', '\u0412\u044b \u043d\u0430 \u0441\u0432\u044f\u0437\u0438! \uD83C\uDF89');
+        hangupBtn.classList.remove('hidden');
+        hintText.classList.add('hidden');
+        startTimer();
+        setTimeout(function() { setupVisualizer(remoteAudio.srcObject); }, 400);
+      } else if (s === 'disconnected' || s === 'failed' || s === 'closed') {
+        endCall();
+      }
+    };
+
+    // Fallback: also watch ICE connection state (better Safari support)
+    pc.oniceconnectionstatechange = function() {
+      var s = pc ? pc.iceConnectionState : '';
+      if (s === 'connected' || s === 'completed') {
+        if (statusDot.className.indexOf('dot-connected') === -1) {
+          setStatus('connected', '\u0412\u044b \u043d\u0430 \u0441\u0432\u044f\u0437\u0438! \uD83C\uDF89');
+          hangupBtn.classList.remove('hidden');
+          hintText.classList.add('hidden');
+          if (!timerInterval) startTimer();
+          setTimeout(function() { setupVisualizer(remoteAudio.srcObject); }, 400);
+        }
+      } else if (s === 'failed') {
+        endCall();
+      }
+    };
+
+    return pc;
+  }
+
+  // ── Caller flow ───────────────────────────────────────────────────────────
+  async function startAsCaller() {
+    createPC();
+
+    pc.onicecandidate = function(e) {
+      if (e.candidate) roomRef.child('callerCandidates').push(e.candidate.toJSON());
+    };
+
+    var offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await roomRef.child('offer').set({ type: offer.type, sdp: offer.sdp });
+
+    // "\u0416\u0434\u0451\u043c \u0432\u0442\u043e\u0440\u043e\u0433\u043e \u0443\u0447\u0430\u0441\u0442\u043d\u0438\u043a\u0430..." = "Ждём второго участника..."
+    setStatus('waiting', '\u0416\u0434\u0451\u043c \u0432\u0442\u043e\u0440\u043e\u0433\u043e \u0443\u0447\u0430\u0441\u0442\u043d\u0438\u043a\u0430...');
+
+    // Wait for answer
+    fbListen(roomRef.child('answer'), 'value', function(snap) {
+      if (snap.exists() && pc && !pc.currentRemoteDescription) {
+        pc.setRemoteDescription(new RTCSessionDescription(snap.val())).catch(function(e) {
+          console.error('setRemoteDescription error', e);
+        });
+      }
+    });
+
+    // Receive callee ICE candidates
+    fbListen(roomRef.child('calleeCandidates'), 'child_added', function(snap) {
+      if (snap.exists() && pc) {
+        pc.addIceCandidate(new RTCIceCandidate(snap.val())).catch(function() {});
+      }
+    });
+  }
+
+  // ── Callee flow ───────────────────────────────────────────────────────────
+  async function startAsCallee(offerData) {
+    createPC();
+
+    pc.onicecandidate = function(e) {
+      if (e.candidate) roomRef.child('calleeCandidates').push(e.candidate.toJSON());
+    };
+
+    await pc.setRemoteDescription(new RTCSessionDescription(offerData));
+
+    // Receive caller ICE candidates (including ones already stored)
+    fbListen(roomRef.child('callerCandidates'), 'child_added', function(snap) {
+      if (snap.exists() && pc) {
+        pc.addIceCandidate(new RTCIceCandidate(snap.val())).catch(function() {});
+      }
+    });
+
+    var answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    await roomRef.child('answer').set({ type: answer.type, sdp: answer.sdp });
+
+    // "\u0421\u043e\u0435\u0434\u0438\u043d\u044f\u0435\u043c\u0441\u044f..." = "Соединяемся..."
+    setStatus('waiting', '\u0421\u043e\u0435\u0434\u0438\u043d\u044f\u0435\u043c\u0441\u044f...');
+  }
+
+  // ── Main join flow ────────────────────────────────────────────────────────
   async function join() {
-    const code = getCode();
+    var code = getCode();
     if (code.length < 3) return;
 
     joinCard.classList.add('hidden');
     callCard.classList.remove('hidden');
-    setStatus('waiting', 'Включаем микрофон...');
+    hideError();
 
-    // Check if microphone is even available (blocked on http://)
+    // "\u0412\u043a\u043b\u044e\u0447\u0430\u0435\u043c \u043c\u0438\u043a\u0440\u043e\u0444\u043e\u043d..." = "Включаем микрофон..."
+    setStatus('waiting', '\u0412\u043a\u043b\u044e\u0447\u0430\u0435\u043c \u043c\u0438\u043a\u0440\u043e\u0444\u043e\u043d...');
+
+    // Check mic API
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       callCard.classList.add('hidden');
       joinCard.classList.remove('hidden');
-      errorBanner.textContent = '\u26A0\uFE0F Браузер заблокировал микрофон. Убедитесь, что адрес начинается с https://, а не http://';
-      errorBanner.classList.remove('hidden');
+      showError('\u26A0\uFE0F \u0411\u0440\u0430\u0443\u0437\u0435\u0440 \u0437\u0430\u0431\u043b\u043e\u043a\u0438\u0440\u043e\u0432\u0430\u043b \u043c\u0438\u043a\u0440\u043e\u0444\u043e\u043d. \u0423\u0431\u0435\u0434\u0438\u0442\u0435\u0441\u044c, \u0447\u0442\u043e \u0430\u0434\u0440\u0435\u0441 \u043d\u0430\u0447\u0438\u043d\u0430\u0435\u0442\u0441\u044f \u0441 https://');
       return;
     }
 
+    // Request mic
     try {
       localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     } catch (e) {
       callCard.classList.add('hidden');
       joinCard.classList.remove('hidden');
       if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
-        errorBanner.textContent = '\u{1F3A4} Нужно разрешить доступ к микрофону. Нажмите «Разрешить» когда браузер спросит.';
+        showError('\uD83C\uDFA4 \u041d\u0443\u0436\u043d\u043e \u0440\u0430\u0437\u0440\u0435\u0448\u0438\u0442\u044c \u0434\u043e\u0441\u0442\u0443\u043f \u043a \u043c\u0438\u043a\u0440\u043e\u0444\u043e\u043d\u0443. \u041d\u0430\u0436\u043c\u0438\u0442\u0435 \u00ab\u0420\u0430\u0437\u0440\u0435\u0448\u0438\u0442\u044c\u00bb \u043a\u043e\u0433\u0434\u0430 \u0431\u0440\u0430\u0443\u0437\u0435\u0440 \u0441\u043f\u0440\u043e\u0441\u0438\u0442.');
       } else if (e.name === 'NotFoundError') {
-        errorBanner.textContent = '\u{1F3A4} Микрофон не найден. Проверьте, что он подключён.';
+        showError('\uD83C\uDFA4 \u041c\u0438\u043a\u0440\u043e\u0444\u043e\u043d \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435, \u0447\u0442\u043e \u043e\u043d \u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0451\u043d.');
       } else {
-        errorBanner.textContent = '\u26A0\uFE0F Не удалось включить микрофон. Попробуйте перезагрузить страницу.';
+        showError('\u26A0\uFE0F \u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0432\u043a\u043b\u044e\u0447\u0438\u0442\u044c \u043c\u0438\u043a\u0440\u043e\u0444\u043e\u043d. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u043f\u0435\u0440\u0435\u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0443.');
       }
-      errorBanner.classList.remove('hidden');
       return;
     }
-    errorBanner.classList.add('hidden');
+    hideError();
 
-    const idA = roomToPeerId(code, 'a');
-    const idB = roomToPeerId(code, 'b');
+    // "\u041f\u043e\u0434\u043a\u043b\u044e\u0447\u0430\u0435\u043c\u0441\u044f..." = "Подключаемся..."
+    setStatus('waiting', '\u041f\u043e\u0434\u043a\u043b\u044e\u0447\u0430\u0435\u043c\u0441\u044f...');
 
-    setStatus('waiting', 'Подключаемся...');
+    // Init Firebase (only once)
+    if (!firebase.apps.length) firebase.initializeApp(FB_CONFIG);
+    var db = firebase.database();
+    roomRef = db.ref('rooms/vc-' + code);
 
-    // Use non-Google STUN + free TURN relay (works in Russia and behind firewalls)
-    const peerCfg = {
-      debug: 0,
-      config: {
-        iceServers: [
-          { urls: 'stun:stun.cloudflare.com:3478' },
-          { urls: 'stun:stun.relay.metered.ca:80' },
-          { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-          { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-          { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
-        ]
-      }
-    };
+    try {
+      // Check if a caller already exists (offer present)
+      var offerSnap = await roomRef.child('offer').get();
 
-    peer = new Peer(idA, peerCfg);
-
-    peer.on('open', () => {
-      setStatus('waiting', 'Ждём второго участника...');
-      peer.on('call', incomingCall => {
-        incomingCall.answer(localStream);
-        handleCall(incomingCall);
-      });
-    });
-
-    peer.on('error', err => {
-      if (err.type === 'unavailable-id') {
-        peer.destroy();
-        peer = new Peer(idB, peerCfg);
-
-        peer.on('open', () => {
-          setStatus('waiting', 'Соединяем...');
-          const outgoing = peer.call(idA, localStream);
-          handleCall(outgoing);
-        });
-
-        peer.on('error', err2 => {
-          console.error('Peer error (B)', err2);
-          callCard.classList.add('hidden');
-          joinCard.classList.remove('hidden');
-          digits.forEach(d => d.value = '');
-          updateCallBtn();
-          errorBanner.textContent = '\u26A0\uFE0F \u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u043e\u0435\u0434\u0438\u043d\u0435\u043d\u0438\u044f: ' + (err2.type || err2.message || err2) + '. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437.';
-          errorBanner.classList.remove('hidden');
-        });
-
-        peer.on('call', incomingCall => {
-          incomingCall.answer(localStream);
-          handleCall(incomingCall);
-        });
+      if (!offerSnap.exists()) {
+        // We are the CALLER — create offer, wait for callee
+        await startAsCaller();
       } else {
-        console.error('Peer error (A)', err);
-        callCard.classList.add('hidden');
-        joinCard.classList.remove('hidden');
-        digits.forEach(d => d.value = '');
-        updateCallBtn();
-        errorBanner.textContent = '\u26A0\uFE0F \u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u043e\u0435\u0434\u0438\u043d\u0435\u043d\u0438\u044f: ' + (err.type || err.message || err) + '. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437.';
-        errorBanner.classList.remove('hidden');
+        // We are the CALLEE — read offer, send answer
+        await startAsCallee(offerSnap.val());
       }
-    });
+    } catch (err) {
+      console.error('Signaling error:', err);
+      // Reset UI
+      if (localStream) { localStream.getTracks().forEach(function(t) { t.stop(); }); localStream = null; }
+      fbRemoveAll();
+      if (roomRef) { roomRef.remove().catch(function() {}); roomRef = null; }
+      if (pc) { try { pc.close(); } catch(e) {} pc = null; }
+      callCard.classList.add('hidden');
+      joinCard.classList.remove('hidden');
+      digits.forEach(function(d) { d.value = ''; });
+      updateCallBtn();
+      showError('\u26A0\uFE0F \u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u043e\u0435\u0434\u0438\u043d\u0435\u043d\u0438\u044f: ' +
+        (err.message || String(err)) +
+        '. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437.');
+    }
   }
 
   joinBtn.addEventListener('click', join);
