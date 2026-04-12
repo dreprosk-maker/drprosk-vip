@@ -4,9 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Голосовой звонок</title>
-<!-- Firebase compat SDKs — accessible from Russia, no PeerJS signalling server needed -->
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+<script src="https://unpkg.com/agora-rtc-sdk-ng@4.20.0/AgoraRTC_N-production.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -49,653 +47,504 @@
   }
 
   .card {
-    background: #fff;
+    background: white;
     border-radius: 20px;
-    padding: 2rem 1.8rem;
-    margin-bottom: 1rem;
-    box-shadow: 0 2px 14px rgba(0,0,0,0.09);
-  }
-
-  .code-label {
-    text-align: center;
-    font-size: 1.2rem;
-    font-weight: 600;
-    color: #4a5568;
-    margin-bottom: 1.2rem;
-  }
-
-  .digits {
+    padding: 2rem;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.10);
     display: flex;
-    justify-content: center;
-    gap: 1rem;
-    margin-bottom: 1.6rem;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.2rem;
   }
 
-  .digit-input {
-    width: 90px;
-    height: 110px;
-    text-align: center;
-    font-weight: 700;
-    border: 3px solid #cbd5e0;
-    border-radius: 16px;
-    background: #f7fafc;
-    color: #2d3748;
-    outline: none;
-    transition: border-color 0.2s, box-shadow 0.2s;
-    caret-color: transparent;
-    font-size: clamp(2rem, 8vw, 3.5rem);
-  }
-
-  .digit-input:focus {
-    border-color: #4299e1;
-    box-shadow: 0 0 0 4px rgba(66,153,225,0.2);
-    background: #ebf8ff;
-  }
-
-  .numpad {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 0.7rem;
-    margin-bottom: 1.4rem;
-  }
-
-  .numpad-btn {
-    padding: 1rem 0;
-    font-size: 1.8rem;
-    font-weight: 700;
-    background: #edf2f7;
-    color: #2d3748;
-    border: none;
-    border-radius: 14px;
-    cursor: pointer;
-    transition: background 0.15s, transform 0.1s;
-    user-select: none;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .numpad-btn:hover { background: #e2e8f0; }
-  .numpad-btn:active { background: #cbd5e0; transform: scale(0.95); }
-
-  .numpad-btn.del {
-    font-size: 1.4rem;
-    background: #fed7d7;
-    color: #c53030;
-  }
-  .numpad-btn.del:hover { background: #feb2b2; }
-
-  .numpad-btn.zero { grid-column: 2; }
-
-  button.btn-call {
-    width: 100%;
-    padding: 1.3rem;
-    font-size: 1.6rem;
-    font-weight: 700;
-    background: #38a169;
-    color: #fff;
-    border: none;
-    border-radius: 16px;
-    cursor: pointer;
-    transition: background 0.2s, transform 0.1s;
-    letter-spacing: 0.02em;
-  }
-  button.btn-call:hover { background: #2f855a; }
-  button.btn-call:active { transform: scale(0.97); }
-  button.btn-call:disabled {
-    background: #a0aec0;
-    color: #e2e8f0;
-    cursor: not-allowed;
-    transform: none;
-  }
-
-  button.btn-hangup {
-    width: 100%;
-    padding: 1.3rem;
-    font-size: 1.6rem;
-    font-weight: 700;
-    background: #e53e3e;
-    color: #fff;
-    border: none;
-    border-radius: 16px;
-    cursor: pointer;
-    margin-top: 1.2rem;
-    transition: background 0.2s, transform 0.1s;
-  }
-  button.btn-hangup:hover { background: #c53030; }
-  button.btn-hangup:active { transform: scale(0.97); }
-
-  .status-area {
-    text-align: center;
-    padding: 1.5rem 0 0.5rem;
-  }
-
-  .status-dot {
-    display: inline-block;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    margin-right: 0.5rem;
-    vertical-align: middle;
-  }
-
-  .dot-waiting   { background: #ecc94b; animation: pulse 1.5s infinite; }
-  .dot-connected { background: #38a169; }
-  .dot-off       { background: #a0aec0; }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50%       { opacity: 0.25; }
+  .status-icon {
+    font-size: 3.5rem;
+    line-height: 1;
   }
 
   .status-text {
-    font-size: 1.35rem;
-    vertical-align: middle;
-    color: #4a5568;
+    font-size: 1.25rem;
+    font-weight: 600;
+    text-align: center;
+    color: #2d3748;
+    min-height: 2em;
   }
 
-  .timer {
-    font-size: 3.2rem;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    margin-top: 0.8rem;
-    color: #2b6cb0;
+  .status-sub {
+    font-size: 0.95rem;
+    color: #718096;
+    text-align: center;
+    min-height: 1.5em;
   }
 
-  .visualizer {
-    display: flex;
-    align-items: flex-end;
+  .pulse-ring {
+    display: none;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: #48bb78;
+    position: relative;
+    align-items: center;
     justify-content: center;
-    gap: 4px;
-    height: 50px;
-    margin-top: 1rem;
+    font-size: 2rem;
   }
 
-  .bar {
-    width: 7px;
-    background: #4299e1;
-    border-radius: 3px;
-    transition: height 0.05s;
-    min-height: 4px;
+  .pulse-ring.active {
+    display: flex;
   }
 
-  .hint {
-    text-align: center;
-    color: #a0aec0;
-    font-size: 1rem;
-    margin-top: 1rem;
-    line-height: 1.6;
+  .pulse-ring::before, .pulse-ring::after {
+    content: '';
+    position: absolute;
+    border-radius: 50%;
+    background: #48bb78;
+    opacity: 0.4;
+    animation: pulse 2s ease-out infinite;
   }
 
-  .hidden { display: none; }
+  .pulse-ring::before {
+    width: 110%;
+    height: 110%;
+    animation-delay: 0s;
+  }
 
-  .error-banner {
-    background: #fff5f5;
-    border: 2px solid #fc8181;
+  .pulse-ring::after {
+    width: 130%;
+    height: 130%;
+    animation-delay: 0.5s;
+  }
+
+  @keyframes pulse {
+    0% { transform: scale(1); opacity: 0.4; }
+    100% { transform: scale(1.3); opacity: 0; }
+  }
+
+  .btn {
+    width: 100%;
+    padding: 1rem 1.5rem;
+    border: none;
     border-radius: 14px;
-    padding: 1.1rem 1.4rem;
-    margin-bottom: 1rem;
-    font-size: 1.1rem;
-    color: #c53030;
-    line-height: 1.5;
-    text-align: center;
+    font-size: 1.2rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    letter-spacing: 0.02em;
   }
+
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-call {
+    background: #38a169;
+    color: white;
+  }
+
+  .btn-call:hover:not(:disabled) { opacity: 0.9; }
+
+  .btn-hangup {
+    background: #e53e3e;
+    color: white;
+  }
+
+  .btn-hangup:hover:not(:disabled) { opacity: 0.9; }
+
+  .error-box {
+    display: none;
+    background: #fff5f5;
+    border: 1px solid #fc8181;
+    border-radius: 12px;
+    padding: 0.9rem 1rem;
+    color: #c53030;
+    font-size: 0.95rem;
+    text-align: center;
+    width: 100%;
+  }
+
+  .error-box.visible { display: block; }
+
+  .spinner {
+    display: none;
+    width: 40px;
+    height: 40px;
+    border: 4px solid #e2e8f0;
+    border-top-color: #38a169;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  .spinner.active { display: block; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* States controlled by JS */
+  body.state-idle .show-active,
+  body.state-idle .show-connecting,
+  body.state-idle .show-waiting,
+  body.state-idle .show-incall { display: none; }
+
+  body.state-connecting .show-idle,
+  body.state-connecting .show-waiting,
+  body.state-connecting .show-incall { display: none; }
+
+  body.state-waiting .show-idle,
+  body.state-waiting .show-connecting,
+  body.state-waiting .show-incall { display: none; }
+
+  body.state-incall .show-idle,
+  body.state-incall .show-connecting,
+  body.state-incall .show-waiting { display: none; }
+
+  /* Show only when in channel (waiting or in-call) */
+  body.state-idle .show-connected,
+  body.state-connecting .show-connected { display: none; }
+
+  .info-block {
+    background: #f0fff4;
+    border: 1px solid #9ae6b4;
+    border-radius: 12px;
+    padding: 0.65rem 1rem;
+    width: 100%;
+    font-size: 0.88rem;
+    color: #276749;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .info-row {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  /* PIN state */
+  body.state-pin .show-idle,
+  body.state-pin .show-active,
+  body.state-pin .show-connecting,
+  body.state-pin .show-waiting,
+  body.state-pin .show-incall,
+  body.state-pin .show-connected { display: none; }
+
+  body.state-idle .show-pin,
+  body.state-connecting .show-pin,
+  body.state-waiting .show-pin,
+  body.state-incall .show-pin { display: none; }
+
+  .pin-screen { width:100%; display:flex; flex-direction:column; align-items:center; gap:0.9rem; }
+  .pin-lock { font-size:3.5rem; animation: floatPin 3s ease-in-out infinite; }
+  @keyframes floatPin { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+  .pin-title { font-size:1.25rem; font-weight:700; color:#2d3748; text-align:center; }
+  .pin-sub { font-size:0.9rem; color:#718096; text-align:center; }
+  .pin-dots { display:flex; gap:1.2rem; margin:0.4rem 0; }
+  .pin-dot { width:20px; height:20px; border-radius:50%; border:3px solid #68d391; background:transparent; transition:all 0.2s ease; }
+  .pin-dot.filled { background:#38a169; border-color:#38a169; transform:scale(1.2); box-shadow:0 0 12px rgba(56,161,105,0.5); }
+  .pin-dot.wrong { background:#e53e3e; border-color:#e53e3e; box-shadow:0 0 12px rgba(229,62,62,0.5); }
+  .pin-dot.success { background:#38a169; border-color:#38a169; box-shadow:0 0 18px rgba(56,161,105,0.8); transform:scale(1.3); }
+  .pin-pad { display:grid; grid-template-columns:repeat(3,1fr); gap:0.65rem; width:100%; max-width:240px; }
+  .pin-key { aspect-ratio:1; border:none; border-radius:50%; background:linear-gradient(135deg,#f0fff4,#c6f6d5); font-size:1.4rem; font-weight:700; color:#276749; cursor:pointer; transition:all 0.15s; box-shadow:0 3px 10px rgba(72,187,120,0.25); }
+  .pin-key:hover:not(.pin-key-empty) { transform:scale(1.1); box-shadow:0 5px 18px rgba(72,187,120,0.4); }
+  .pin-key:active:not(.pin-key-empty) { transform:scale(0.92); }
+  .pin-key-empty { background:transparent; box-shadow:none; cursor:default; pointer-events:none; }
+  .pin-key-del { background:linear-gradient(135deg,#fff5f5,#fed7d7); color:#c53030; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-10px)} 40%{transform:translateX(10px)} 60%{transform:translateX(-7px)} 80%{transform:translateX(7px)} }
+  .pin-dots.shake { animation:shake 0.45s ease; }
 </style>
 </head>
-<body>
+<body class="state-pin">
+
 <div class="container">
-  <div class="phone-icon">&#128222;</div>
-  <h1>Голосовой звонок</h1>
-  <p class="subtitle">Введите ваш секретный код из трёх цифр<br>и нажмите «Позвонить»</p>
+  <div class="phone-icon">📞</div>
+  <h1>Звонок</h1>
+  <p class="subtitle">Нажмите кнопку чтобы<br>позвонить</p>
 
-  <!-- Join card -->
-  <div class="card" id="joinCard">
-    <div class="code-label">Введите код:</div>
+  <div class="card">
 
-    <div class="digits">
-      <input class="digit-input" id="d0" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" readonly>
-      <input class="digit-input" id="d1" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" readonly>
-      <input class="digit-input" id="d2" type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="off" readonly>
+    <!-- PIN state -->
+    <div class="show-pin pin-screen">
+      <div class="pin-lock">🔐</div>
+      <div class="pin-title">Семейный звонок</div>
+      <div class="pin-sub">Введите 3-значный код</div>
+      <div class="pin-dots" id="pinDots">
+        <span class="pin-dot" id="pd0"></span>
+        <span class="pin-dot" id="pd1"></span>
+        <span class="pin-dot" id="pd2"></span>
+      </div>
+      <div class="pin-pad">
+        <button class="pin-key" onclick="pinKey('1')">1</button>
+        <button class="pin-key" onclick="pinKey('2')">2</button>
+        <button class="pin-key" onclick="pinKey('3')">3</button>
+        <button class="pin-key" onclick="pinKey('4')">4</button>
+        <button class="pin-key" onclick="pinKey('5')">5</button>
+        <button class="pin-key" onclick="pinKey('6')">6</button>
+        <button class="pin-key" onclick="pinKey('7')">7</button>
+        <button class="pin-key" onclick="pinKey('8')">8</button>
+        <button class="pin-key" onclick="pinKey('9')">9</button>
+        <button class="pin-key pin-key-empty" disabled></button>
+        <button class="pin-key" onclick="pinKey('0')">0</button>
+        <button class="pin-key pin-key-del" onclick="pinDel()">&#x232B;</button>
+      </div>
     </div>
 
-    <div class="numpad">
-      <button class="numpad-btn" data-n="1">1</button>
-      <button class="numpad-btn" data-n="2">2</button>
-      <button class="numpad-btn" data-n="3">3</button>
-      <button class="numpad-btn" data-n="4">4</button>
-      <button class="numpad-btn" data-n="5">5</button>
-      <button class="numpad-btn" data-n="6">6</button>
-      <button class="numpad-btn" data-n="7">7</button>
-      <button class="numpad-btn" data-n="8">8</button>
-      <button class="numpad-btn" data-n="9">9</button>
-      <button class="numpad-btn del" id="delBtn">&#9003;</button>
-      <button class="numpad-btn zero" data-n="0">0</button>
+    <!-- IDLE state -->
+    <div class="show-idle" style="text-align:center; width:100%;">
+      <div class="status-icon">🤳</div>
+      <div class="status-text">Готов к звонку</div>
+      <div class="status-sub">Нажмите «Позвонить» для соединения</div>
     </div>
 
-    <button class="btn-call" id="joinBtn" disabled>Позвонить</button>
+    <!-- CONNECTING state -->
+    <div class="show-connecting" style="text-align:center; width:100%;">
+      <div class="spinner active" style="margin: 0 auto;"></div>
+      <div class="status-text" style="margin-top:1rem;">Соединяемся…</div>
+      <div class="status-sub">Подключение к серверу</div>
+    </div>
+
+    <!-- WAITING state -->
+    <div class="show-waiting" style="text-align:center; width:100%;">
+      <div class="spinner active" style="margin: 0 auto; border-top-color: #3182ce;"></div>
+      <div class="status-text" style="margin-top:1rem;">Ожидаем собеседника…</div>
+      <div class="status-sub">Вы подключены. Ждём второго участника.</div>
+    </div>
+
+    <!-- IN-CALL state -->
+    <div class="show-incall" style="text-align:center; width:100%;">
+      <div class="pulse-ring active">📞</div>
+      <div class="status-text" style="margin-top:1rem;">Соединено!</div>
+      <div class="status-sub" id="callDuration">Время разговора: 00:00</div>
+    </div>
+
+    <!-- Connection info (shown when waiting or in-call) -->
+    <div class="info-block show-connected" id="infoBlock">
+      <div class="info-row">👥 <span id="infoUsers">1 человек в канале</span></div>
+      <div class="info-row">📶 <span id="infoQuality">📡 Качество связи: определяем…</span></div>
+    </div>
+
+    <!-- Error box (visible in any state) -->
+    <div class="error-box" id="errorBox"></div>
+
+    <!-- Buttons -->
+    <button class="btn btn-call show-idle" id="btnCall" onclick="startCall()">📞 Позвонить</button>
+    <button class="btn btn-hangup show-active" id="btnHangup" onclick="endCall()">📵 Завершить</button>
+
   </div>
-
-  <!-- Status card (shown while in/after call) -->
-  <div class="card hidden" id="callCard">
-    <div class="status-area">
-      <span class="status-dot dot-waiting" id="statusDot"></span>
-      <span class="status-text" id="statusText">Ждём второго участника...</span>
-      <div class="timer hidden" id="timer">00:00</div>
-      <div class="visualizer hidden" id="visualizer"></div>
-    </div>
-    <button class="btn-hangup hidden" id="hangupBtn">Положить трубку</button>
-  </div>
-
-  <div class="error-banner hidden" id="errorBanner"></div>
-
-  <p class="hint" id="hintText">Договоритесь о коде заранее — оба вводят одно и то же.</p>
-
-  <audio id="remoteAudio" autoplay playsinline></audio>
 </div>
 
 <script>
-(() => {
-  'use strict';
-
-  // ── Firebase configuration ────────────────────────────────────────────────
-  var FB_CONFIG = {
-    apiKey:            'AIzaSyCyBaPXKUiY8qZhgFJZihzsbrmaG5X-My8',
-    authDomain:        'drprosk-call.firebaseapp.com',
-    databaseURL:       'https://drprosk-call-default-rtdb.firebaseio.com',
-    projectId:         'drprosk-call',
-    storageBucket:     'drprosk-call.firebasestorage.app',
-    messagingSenderId: '125896900326',
-    appId:             '1:125896900326:web:bd209363fd4bfbd3680527'
-  };
-
-  // ── ICE servers ───────────────────────────────────────────────────────────
-  // Multiple STUN + TURN providers; TCP-443 fallbacks get through most firewalls
-  var ICE_CFG = {
-    iceServers: [
-      { urls: 'stun:stun.cloudflare.com:3478' },
-      { urls: 'stun:stun.relay.metered.ca:80' },
-      { urls: 'stun:stun.l.google.com:19302' },
-      // Metered open-relay TURN (UDP + TCP fallbacks)
-      { urls: 'turn:openrelay.metered.ca:80',
-        username: 'openrelayproject', credential: 'openrelayproject' },
-      { urls: 'turn:openrelay.metered.ca:443',
-        username: 'openrelayproject', credential: 'openrelayproject' },
-      { urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-        username: 'openrelayproject', credential: 'openrelayproject' },
-      // numb.viagenie.ca — well-known public TURN
-      { urls: 'turn:numb.viagenie.ca',
-        username: 'webrtc@live.com', credential: 'muazkh' },
-      // freestun — another public TURN
-      { urls: 'turn:freestun.net:3479',
-        username: 'free', credential: 'free' },
-      { urls: 'turn:freestun.net:5350',
-        username: 'free', credential: 'free' }
-    ],
-    iceCandidatePoolSize: 10
-  };
-
-  // ── DOM ───────────────────────────────────────────────────────────────────
-  var $ = function(id) { return document.getElementById(id); };
-  var digits      = [$('d0'), $('d1'), $('d2')];
-  var joinBtn     = $('joinBtn');
-  var joinCard    = $('joinCard');
-  var callCard    = $('callCard');
-  var statusDot   = $('statusDot');
-  var statusText  = $('statusText');
-  var timerEl     = $('timer');
-  var hangupBtn   = $('hangupBtn');
-  var visualizer  = $('visualizer');
-  var remoteAudio = $('remoteAudio');
-  var hintText    = $('hintText');
-  var delBtn      = $('delBtn');
-  var errorBanner = $('errorBanner');
-
-  // ── State ─────────────────────────────────────────────────────────────────
-  var pc           = null;
-  var localStream  = null;
-  var roomRef      = null;
-  var fbListeners  = [];   // [{ref, event, cb}]
-  var timerInterval = null;
-  var connTimeout  = null;  // connection watchdog
-  var callStart    = 0;
-  var analyserNode = null;
-  var animFrame    = null;
-
-  // ── Numpad ────────────────────────────────────────────────────────────────
-  function getCode() { return digits.map(function(d) { return d.value; }).join(''); }
-  function updateCallBtn() { joinBtn.disabled = getCode().length < 3; }
-
-  document.querySelectorAll('.numpad-btn[data-n]').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var code = getCode();
-      if (code.length >= 3) return;
-      digits[code.length].value = btn.dataset.n;
-      updateCallBtn();
-    });
-  });
-
-  delBtn.addEventListener('click', function() {
-    var code = getCode();
-    if (!code.length) return;
-    digits[code.length - 1].value = '';
-    updateCallBtn();
-  });
-
-  document.addEventListener('keydown', function(e) {
-    if (pc) return;
-    if (e.key >= '0' && e.key <= '9') {
-      var code = getCode();
-      if (code.length < 3) { digits[code.length].value = e.key; updateCallBtn(); }
-    } else if (e.key === 'Backspace') {
-      var code = getCode();
-      if (code.length > 0) { digits[code.length - 1].value = ''; updateCallBtn(); }
-    } else if (e.key === 'Enter') {
-      if (!joinBtn.disabled) join();
+(function() {
+  // Session access gate
+  var _h = 54615;
+  function _auth(p){var h=0;for(var i=0;i<p.length;i++)h=(h*31+p.charCodeAt(i))|0;return h===_h;}
+  var _pin = '';
+  window.pinKey = function(d) {
+    if (_pin.length >= 3) return;
+    _pin += d;
+    var dot = document.getElementById('pd' + (_pin.length - 1));
+    if (dot) dot.classList.add('filled');
+    if (_pin.length === 3) {
+      setTimeout(function() {
+        if (_auth(_pin)) {
+          var pd = document.getElementById('pinDots');
+          if (pd) pd.classList.add('success');
+          setTimeout(function() {
+            setState('idle');
+            _pin = '';
+            for (var i = 0; i < 3; i++) {
+              var d = document.getElementById('pd' + i);
+              if (d) d.classList.remove('filled', 'wrong', 'success');
+            }
+            var pd2 = document.getElementById('pinDots');
+            if (pd2) pd2.classList.remove('success');
+          }, 320);
+        } else {
+          var pd = document.getElementById('pinDots');
+          for (var i = 0; i < 3; i++) {
+            var d = document.getElementById('pd' + i);
+            if (d) d.classList.add('wrong');
+          }
+          if (pd) {
+            pd.classList.add('shake');
+            setTimeout(function() {
+              pd.classList.remove('shake');
+              for (var i = 0; i < 3; i++) {
+                var d = document.getElementById('pd' + i);
+                if (d) d.classList.remove('filled', 'wrong');
+              }
+              _pin = '';
+            }, 500);
+          }
+        }
+      }, 150);
     }
-  });
+  };
+  window.pinDel = function() {
+    if (_pin.length === 0) return;
+    var dot = document.getElementById('pd' + (_pin.length - 1));
+    if (dot) dot.classList.remove('filled');
+    _pin = _pin.slice(0, -1);
+  };
 
-  // ── UI helpers ────────────────────────────────────────────────────────────
-  function setStatus(state, text) {
-    var cls = { waiting: 'dot-waiting', connected: 'dot-connected', off: 'dot-off' };
-    statusDot.className = 'status-dot ' + (cls[state] || 'dot-off');
-    statusText.textContent = text;
+  var APP_ID   = 'fc6454358b2e4c19970d3af3fe87d96f';
+  var CHANNEL  = 'family';
+  var TOKEN    = null; // App ID-only mode (no token required)
+
+  var client     = null;
+  var localTrack = null;
+  var callTimer  = null;
+  var callSecs   = 0;
+  var netQualUp = 0, netQualDown = 0;
+
+  function qualityLabel(q) {
+    if (q === 0) return '❓ определяем…';
+    if (q === 1) return '✨ отличное';
+    if (q === 2) return '✅ хорошее';
+    if (q === 3) return '⚠️ среднее';
+    return '🚨 слабое';
+  }
+
+  function updateInfoUsers() {
+    var n = 1 + (client ? client.remoteUsers.length : 0);
+    var el = document.getElementById('infoUsers');
+    if (el) el.textContent = n + ' ' + (n === 1 ? 'человек в канале' : 'человека в канале');
+  }
+
+  function updateInfoQuality() {
+    var avg = Math.round((netQualUp + netQualDown) / 2) || 0;
+    var el = document.getElementById('infoQuality');
+    if (el) el.textContent = '📡 Качество связи: ' + qualityLabel(avg);
+  }
+
+  AgoraRTC.setLogLevel(3); // warn only
+
+  function setState(s) {
+    document.body.className = 'state-' + s;
   }
 
   function showError(msg) {
-    errorBanner.textContent = msg;
-    errorBanner.classList.remove('hidden');
+    var box = document.getElementById('errorBox');
+    box.textContent = msg;
+    box.classList.add('visible');
+    setTimeout(function() { box.classList.remove('visible'); }, 6000);
   }
-
-  function hideError() { errorBanner.classList.add('hidden'); }
 
   function startTimer() {
-    callStart = Date.now();
-    timerEl.classList.remove('hidden');
-    timerInterval = setInterval(function() {
-      var s = Math.floor((Date.now() - callStart) / 1000);
-      timerEl.textContent =
-        String(Math.floor(s / 60)).padStart(2, '0') + ':' +
-        String(s % 60).padStart(2, '0');
-    }, 500);
+    callSecs = 0;
+    clearInterval(callTimer);
+    callTimer = setInterval(function() {
+      callSecs++;
+      var m = String(Math.floor(callSecs / 60)).padStart(2, '0');
+      var s = String(callSecs % 60).padStart(2, '0');
+      document.getElementById('callDuration').textContent = 'Время разговора: ' + m + ':' + s;
+    }, 1000);
   }
 
-  function stopTimer() { clearInterval(timerInterval); timerEl.classList.add('hidden'); }
-
-  function setupVisualizer(stream) {
-    if (!stream) return;
-    try {
-      var ctx = new (window.AudioContext || window.webkitAudioContext)();
-      var src = ctx.createMediaStreamSource(stream);
-      analyserNode = ctx.createAnalyser();
-      analyserNode.fftSize = 64;
-      src.connect(analyserNode);
-      visualizer.innerHTML = '';
-      for (var i = 0; i < 16; i++) {
-        var bar = document.createElement('div');
-        bar.className = 'bar';
-        visualizer.appendChild(bar);
-      }
-      visualizer.classList.remove('hidden');
-      var bars = visualizer.querySelectorAll('.bar');
-      var data = new Uint8Array(analyserNode.frequencyBinCount);
-      function draw() {
-        analyserNode.getByteFrequencyData(data);
-        bars.forEach(function(bar, i) {
-          bar.style.height = Math.max(4, ((data[i] || 0) / 255) * 48) + 'px';
-        });
-        animFrame = requestAnimationFrame(draw);
-      }
-      draw();
-    } catch (e) { /* visualizer is cosmetic; ignore errors */ }
+  function stopTimer() {
+    clearInterval(callTimer);
+    callTimer = null;
   }
 
-  function stopVisualizer() {
-    cancelAnimationFrame(animFrame);
-    visualizer.classList.add('hidden');
-  }
-
-  // ── Firebase listener management ─────────────────────────────────────────
-  function fbListen(ref, event, cb) {
-    ref.on(event, cb);
-    fbListeners.push({ ref: ref, event: event, cb: cb });
-  }
-
-  function fbRemoveAll() {
-    fbListeners.forEach(function(l) { l.ref.off(l.event, l.cb); });
-    fbListeners = [];
-  }
-
-  // ── Connection watchdog ───────────────────────────────────────────────────
-  function startConnTimeout() {
-    clearTimeout(connTimeout);
-    connTimeout = setTimeout(function() {
-      // If still not connected after 40s, give up with a clear message
-      var iceState = pc ? pc.iceConnectionState : '';
-      if (iceState !== 'connected' && iceState !== 'completed') {
-        // "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u043e\u0435\u0434\u0438\u043d\u0438\u0442\u044c\u0441\u044f \u0437\u0430 40 \u0441\u0435\u043a\u0443\u043d\u0434. ..."
-        // = "Не удалось соединиться за 40 секунд. Попробуйте ещё раз."
-        var savedError = '\u26A0\uFE0F \u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u043e\u0435\u0434\u0438\u043d\u0438\u0442\u044c\u0441\u044f \u0437\u0430 40 \u0441\u0435\u043a\u0443\u043d\u0434. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437.';
-        endCall();
-        showError(savedError);
-      }
-    }, 40000);
-  }
-
-  // ── Call teardown ─────────────────────────────────────────────────────────
-  function endCall() {
-    clearTimeout(connTimeout);
-    fbRemoveAll();
-    if (pc) { try { pc.close(); } catch(e) {} pc = null; }
-    if (localStream) {
-      localStream.getTracks().forEach(function(t) { t.stop(); });
-      localStream = null;
+  function onRemoteJoined() {
+    updateInfoUsers();
+    if (document.body.className !== 'state-incall') {
+      setState('incall');
+      startTimer();
     }
-    remoteAudio.srcObject = null;
-    if (roomRef) { roomRef.remove().catch(function() {}); roomRef = null; }
-    stopTimer();
-    stopVisualizer();
-    hangupBtn.classList.add('hidden');
-    callCard.classList.add('hidden');
-    // "\u0417\u0432\u043e\u043d\u043e\u043a \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043d" = "Звонок завершён"
-    setStatus('off', '\u0417\u0432\u043e\u043d\u043e\u043a \u0437\u0430\u0432\u0435\u0440\u0448\u0451\u043d');
-    digits.forEach(function(d) { d.value = ''; });
-    updateCallBtn();
-    joinCard.classList.remove('hidden');
-    hintText.classList.remove('hidden');
   }
 
-  hangupBtn.addEventListener('click', endCall);
+  function onRemoteLeft() {
+    updateInfoUsers();
+    var anyAudio = client && client.remoteUsers.some(function(u) { return u.hasAudio; });
+    if (!anyAudio) {
+      stopTimer();
+      setState('waiting');
+    }
+  }
 
-  // ── Create RTCPeerConnection ───────────────────────────────────────────────
-  function createPC() {
-    pc = new RTCPeerConnection(ICE_CFG);
+  window.startCall = async function() {
+    setState('connecting');
+    document.getElementById('errorBox').classList.remove('visible');
 
-    localStream.getTracks().forEach(function(t) { pc.addTrack(t, localStream); });
+    try {
+      client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
 
-    pc.ontrack = function(e) {
-      remoteAudio.srcObject = e.streams[0];
-    };
-
-    pc.onconnectionstatechange = function() {
-      var s = pc ? pc.connectionState : '';
-      if (s === 'connected') {
-        // "\u0412\u044b \u043d\u0430 \u0441\u0432\u044f\u0437\u0438!" = "Вы на связи!"
-        setStatus('connected', '\u0412\u044b \u043d\u0430 \u0441\u0432\u044f\u0437\u0438! \uD83C\uDF89');
-        hangupBtn.classList.remove('hidden');
-        hintText.classList.add('hidden');
-        startTimer();
-        setTimeout(function() { setupVisualizer(remoteAudio.srcObject); }, 400);
-      } else if (s === 'disconnected' || s === 'failed' || s === 'closed') {
-        endCall();
-      }
-    };
-
-    // Fallback: also watch ICE connection state (better Safari support)
-    pc.oniceconnectionstatechange = function() {
-      var s = pc ? pc.iceConnectionState : '';
-      if (s === 'connected' || s === 'completed') {
-        clearTimeout(connTimeout);  // ICE succeeded — cancel watchdog
-        if (statusDot.className.indexOf('dot-connected') === -1) {
-          setStatus('connected', '\u0412\u044b \u043d\u0430 \u0441\u0432\u044f\u0437\u0438! \uD83C\uDF89');
-          hangupBtn.classList.remove('hidden');
-          hintText.classList.add('hidden');
-          if (!timerInterval) startTimer();
-          setTimeout(function() { setupVisualizer(remoteAudio.srcObject); }, 400);
+      // Event: remote user publishes audio
+      client.on('user-published', async function(user, mediaType) {
+        await client.subscribe(user, mediaType);
+        if (mediaType === 'audio') {
+          user.audioTrack.play();
+          onRemoteJoined();
         }
-      } else if (s === 'failed') {
-        endCall();
-        showError('\u26A0\uFE0F \u0421\u043e\u0435\u0434\u0438\u043d\u0435\u043d\u0438\u0435 \u043d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437.');
-      }
-    };
-
-    return pc;
-  }
-
-  // ── Caller flow ───────────────────────────────────────────────────────────
-  async function startAsCaller() {
-    createPC();
-
-    pc.onicecandidate = function(e) {
-      if (e.candidate) roomRef.child('callerCandidates').push(e.candidate.toJSON());
-    };
-
-    var offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    await roomRef.child('offer').set({ type: offer.type, sdp: offer.sdp });
-
-    // "\u0416\u0434\u0451\u043c \u0432\u0442\u043e\u0440\u043e\u0433\u043e \u0443\u0447\u0430\u0441\u0442\u043d\u0438\u043a\u0430..." = "Ждём второго участника..."
-    setStatus('waiting', '\u0416\u0434\u0451\u043c \u0432\u0442\u043e\u0440\u043e\u0433\u043e \u0443\u0447\u0430\u0441\u0442\u043d\u0438\u043a\u0430...');
-
-    // IMPORTANT: queue callee ICE candidates until remote description is set.
-    // addIceCandidate() throws if called before setRemoteDescription() — we must not drop them.
-    var calleeCandQueue = [];
-    var remoteDescReady = false;
-
-    function drainCalleeCands() {
-      calleeCandQueue.forEach(function(c) {
-        if (pc) pc.addIceCandidate(new RTCIceCandidate(c)).catch(function() {});
       });
-      calleeCandQueue = [];
-    }
 
-    // Collect callee candidates immediately (they may arrive before the answer)
-    fbListen(roomRef.child('calleeCandidates'), 'child_added', function(snap) {
-      if (!snap.exists() || !pc) return;
-      if (remoteDescReady) {
-        pc.addIceCandidate(new RTCIceCandidate(snap.val())).catch(function() {});
+      // Event: remote user unpublishes
+      client.on('user-unpublished', function(user, mediaType) {
+        if (mediaType === 'audio') onRemoteLeft();
+      });
+
+      // Event: remote user leaves channel
+      client.on('user-left', function(user) {
+        updateInfoUsers();
+        if (client.remoteUsers.length === 0) {
+          stopTimer();
+          setState('waiting');
+        }
+      });
+
+      // Join channel
+      var uid = Math.floor(Math.random() * 1000000);
+      await client.join(APP_ID, CHANNEL, TOKEN, uid);
+
+      // Network quality monitoring
+      client.on('network-quality', function(stats) {
+        netQualUp = stats.uplinkNetworkQuality;
+        netQualDown = stats.downlinkNetworkQuality;
+        updateInfoQuality();
+      });
+
+      updateInfoUsers();
+
+      // Create microphone track and publish
+      localTrack = await AgoraRTC.createMicrophoneAudioTrack({
+        encoderConfig: 'speech_standard'
+      });
+      await client.publish([localTrack]);
+
+      // Set correct state based on whether someone is already in the call
+      var anyAudio = client.remoteUsers.some(function(u) { return u.hasAudio; });
+      updateInfoUsers();
+      if (anyAudio) {
+        setState('incall');
+        if (!callTimer) startTimer();
       } else {
-        calleeCandQueue.push(snap.val());
+        setState('waiting');
       }
-    });
 
-    // Wait for answer — set remote desc THEN drain the queued candidates
-    fbListen(roomRef.child('answer'), 'value', function(snap) {
-      if (!snap.exists() || !pc || pc.currentRemoteDescription) return;
-      pc.setRemoteDescription(new RTCSessionDescription(snap.val())).then(function() {
-        remoteDescReady = true;
-        drainCalleeCands();
-      }).catch(function(e) { console.error('setRemoteDesc(answer) failed', e); });
-    });
-  }
-
-  // ── Callee flow ───────────────────────────────────────────────────────────
-  async function startAsCallee(offerData) {
-    createPC();
-
-    pc.onicecandidate = function(e) {
-      if (e.candidate) roomRef.child('calleeCandidates').push(e.candidate.toJSON());
-    };
-
-    await pc.setRemoteDescription(new RTCSessionDescription(offerData));
-
-    // Receive caller ICE candidates (including ones already stored)
-    fbListen(roomRef.child('callerCandidates'), 'child_added', function(snap) {
-      if (snap.exists() && pc) {
-        pc.addIceCandidate(new RTCIceCandidate(snap.val())).catch(function() {});
-      }
-    });
-
-    var answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-    await roomRef.child('answer').set({ type: answer.type, sdp: answer.sdp });
-
-    // "\u0421\u043e\u0435\u0434\u0438\u043d\u044f\u0435\u043c\u0441\u044f..." = "Соединяемся..."
-    setStatus('waiting', '\u0421\u043e\u0435\u0434\u0438\u043d\u044f\u0435\u043c\u0441\u044f...');
-  }
-
-  // ── Main join flow ────────────────────────────────────────────────────────
-  async function join() {
-    var code = getCode();
-    if (code.length < 3) return;
-
-    joinCard.classList.add('hidden');
-    callCard.classList.remove('hidden');
-    hideError();
-
-    // "\u0412\u043a\u043b\u044e\u0447\u0430\u0435\u043c \u043c\u0438\u043a\u0440\u043e\u0444\u043e\u043d..." = "Включаем микрофон..."
-    setStatus('waiting', '\u0412\u043a\u043b\u044e\u0447\u0430\u0435\u043c \u043c\u0438\u043a\u0440\u043e\u0444\u043e\u043d...');
-
-    // Check mic API
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      callCard.classList.add('hidden');
-      joinCard.classList.remove('hidden');
-      showError('\u26A0\uFE0F \u0411\u0440\u0430\u0443\u0437\u0435\u0440 \u0437\u0430\u0431\u043b\u043e\u043a\u0438\u0440\u043e\u0432\u0430\u043b \u043c\u0438\u043a\u0440\u043e\u0444\u043e\u043d. \u0423\u0431\u0435\u0434\u0438\u0442\u0435\u0441\u044c, \u0447\u0442\u043e \u0430\u0434\u0440\u0435\u0441 \u043d\u0430\u0447\u0438\u043d\u0430\u0435\u0442\u0441\u044f \u0441 https://');
-      return;
-    }
-
-    // Request mic
-    try {
-      localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    } catch (e) {
-      callCard.classList.add('hidden');
-      joinCard.classList.remove('hidden');
-      if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
-        showError('\uD83C\uDFA4 \u041d\u0443\u0436\u043d\u043e \u0440\u0430\u0437\u0440\u0435\u0448\u0438\u0442\u044c \u0434\u043e\u0441\u0442\u0443\u043f \u043a \u043c\u0438\u043a\u0440\u043e\u0444\u043e\u043d\u0443. \u041d\u0430\u0436\u043c\u0438\u0442\u0435 \u00ab\u0420\u0430\u0437\u0440\u0435\u0448\u0438\u0442\u044c\u00bb \u043a\u043e\u0433\u0434\u0430 \u0431\u0440\u0430\u0443\u0437\u0435\u0440 \u0441\u043f\u0440\u043e\u0441\u0438\u0442.');
-      } else if (e.name === 'NotFoundError') {
-        showError('\uD83C\uDFA4 \u041c\u0438\u043a\u0440\u043e\u0444\u043e\u043d \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435, \u0447\u0442\u043e \u043e\u043d \u043f\u043e\u0434\u043a\u043b\u044e\u0447\u0451\u043d.');
-      } else {
-        showError('\u26A0\uFE0F \u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0432\u043a\u043b\u044e\u0447\u0438\u0442\u044c \u043c\u0438\u043a\u0440\u043e\u0444\u043e\u043d. \u041f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u043f\u0435\u0440\u0435\u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0443.');
-      }
-      return;
-    }
-    hideError();
-
-    // "\u041f\u043e\u0434\u043a\u043b\u044e\u0447\u0430\u0435\u043c\u0441\u044f..." = "Подключаемся..."
-    setStatus('waiting', '\u041f\u043e\u0434\u043a\u043b\u044e\u0447\u0430\u0435\u043c\u0441\u044f...');
-
-    // Init Firebase (only once)
-    if (!firebase.apps.length) firebase.initializeApp(FB_CONFIG);
-    var db = firebase.database();
-    roomRef = db.ref('rooms/vc-' + code);
-
-    try {
-      // Check if a caller already exists (offer present)
-      var offerSnap = await roomRef.child('offer').get();
-
-      if (!offerSnap.exists()) {
-        // We are the CALLER — create offer, wait for callee
-        await startAsCaller();
-      } else {
-        // We are the CALLEE — read offer, send answer
-        await startAsCallee(offerSnap.val());
-      }
-      // Start watchdog — if ICE doesn't connect in 40s, show error
-      startConnTimeout();
     } catch (err) {
-      console.error('Signaling error:', err);
-      // Reset UI
-      if (localStream) { localStream.getTracks().forEach(function(t) { t.stop(); }); localStream = null; }
-      fbRemoveAll();
-      if (roomRef) { roomRef.remove().catch(function() {}); roomRef = null; }
-      if (pc) { try { pc.close(); } catch(e) {} pc = null; }
-      callCard.classList.add('hidden');
-      joinCard.classList.remove('hidden');
-      digits.forEach(function(d) { d.value = ''; });
-      updateCallBtn();
-      showError('\u26A0\uFE0F \u041e\u0448\u0438\u0431\u043a\u0430 \u0441\u043e\u0435\u0434\u0438\u043d\u0435\u043d\u0438\u044f: ' +
-        (err.message || String(err)) +
-        '. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438\u043d\u0442\u0435\u0440\u043d\u0435\u0442 \u0438 \u043f\u043e\u043f\u0440\u043e\u0431\u0443\u0439\u0442\u0435 \u0435\u0449\u0451 \u0440\u0430\u0437.');
+      console.error('Agora error:', err);
+      setState('idle');
+      var msg = 'Ошибка [' + (err && err.code || '?') + ']: ' + (err && err.message || 'неизвестно');
+      if (err && err.code === 'PERMISSION_DENIED') {
+        msg = 'Нет доступа к микрофону. Разрешите доступ в настройках браузера.';
+      }
+      showError(msg);
     }
-  }
+  };
 
-  joinBtn.addEventListener('click', join);
+  window.endCall = async function() {
+    stopTimer();
+    try {
+      if (localTrack) {
+        localTrack.stop();
+        localTrack.close();
+        localTrack = null;
+      }
+      if (client) {
+        await client.leave();
+        client = null;
+      }
+    } catch(e) {}
+    setState('idle');
+  };
+
 })();
 </script>
 </body>
