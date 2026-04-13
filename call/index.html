@@ -393,7 +393,8 @@
   var callTimer  = null;
   var callSecs   = 0;
   var netQualUp = 0, netQualDown = 0;
-  var wakeLock   = null;
+  var wakeLock    = null;
+  var _wasInCall  = false;
 
   // Screen Wake Lock — keeps screen on during calls so iOS doesn't kill the mic
   function requestWakeLock() {
@@ -407,26 +408,52 @@
     if (wakeLock) { wakeLock.release().catch(function(){}); wakeLock = null; }
   }
 
-  // Re-acquire wake lock and try to recover mic after phone unlock
+  // When phone locks, record whether we were in a call
   document.addEventListener('visibilitychange', function() {
-    if (document.visibilityState !== 'visible' || !client) return;
+    if (document.visibilityState === 'hidden') {
+      var st = document.body.className;
+      _wasInCall = (st === 'state-waiting' || st === 'state-incall');
+      return;
+    }
+    // Phone unlocked / page visible again
     if (!wakeLock) requestWakeLock();
-    if (!localTrack) return;
-    // Attempt mic recovery: toggle enabled to restart the audio pipeline
-    localTrack.setEnabled(false).then(function() {
-      return localTrack.setEnabled(true);
-    }).catch(function() {
-      // If toggle fails, recreate the track entirely
-      try { localTrack.stop(); localTrack.close(); } catch(e) {}
-      localTrack = null;
-      AgoraRTC.createMicrophoneAudioTrack({ encoderConfig: { sampleRate: 48000, stereo: false, bitrate: 64 } }).then(function(t) {
-        localTrack = t;
-        return client.publish([localTrack]);
-      }).catch(function() {
-        showError('Микрофон отключён после блокировки. Завершите и перезвоните.');
-      });
-    });
+    if (!client || !_wasInCall) return;
+    _wasInCall = false;
+    attemptCallRecovery();
   });
+
+  // Full call recovery after screen lock: rejoin channel and republish mic
+  async function attemptCallRecovery() {
+    stopTimer();
+    setState('connecting');
+    try {
+      // Tear down existing mic
+      if (localTrack) {
+        try { localTrack.stop(); localTrack.close(); } catch(e) {}
+        localTrack = null;
+      }
+      // If connection is still alive just republish; otherwise do a full rejoin
+      if (client.connectionState !== 'CONNECTED') {
+        try { await client.leave(); } catch(e) {}
+        var uid = Math.floor(Math.random() * 1000000);
+        await client.join(APP_ID, CHANNEL, TOKEN, uid);
+      }
+      // Recreate mic and republish
+      localTrack = await AgoraRTC.createMicrophoneAudioTrack({
+        encoderConfig: { sampleRate: 48000, stereo: false, bitrate: 64 }
+      });
+      await client.publish([localTrack]);
+      updateInfoUsers();
+      requestWakeLock();
+      var anyAudio = client.remoteUsers.some(function(u) { return u.hasAudio; });
+      if (anyAudio) { setState('incall'); startTimer(); }
+      else { setState('waiting'); }
+    } catch(e) {
+      client = null; localTrack = null;
+      setState('idle');
+      showError('Звонок прерван при блокировке экрана. Нажмите «Позвонить» снова.');
+    }
+  }
 
   function qualityLabel(q) {
     if (q === 0) return '❓ определяем…';
