@@ -392,6 +392,40 @@
   var callTimer  = null;
   var callSecs   = 0;
   var netQualUp = 0, netQualDown = 0;
+  var wakeLock   = null;
+
+  // Screen Wake Lock — keeps screen on during calls so iOS doesn't kill the mic
+  function requestWakeLock() {
+    if (!('wakeLock' in navigator)) return;
+    navigator.wakeLock.request('screen').then(function(lock) {
+      wakeLock = lock;
+      wakeLock.addEventListener('release', function() { wakeLock = null; });
+    }).catch(function() {});
+  }
+  function releaseWakeLock() {
+    if (wakeLock) { wakeLock.release().catch(function(){}); wakeLock = null; }
+  }
+
+  // Re-acquire wake lock and try to recover mic after phone unlock
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState !== 'visible' || !client) return;
+    if (!wakeLock) requestWakeLock();
+    if (!localTrack) return;
+    // Attempt mic recovery: toggle enabled to restart the audio pipeline
+    localTrack.setEnabled(false).then(function() {
+      return localTrack.setEnabled(true);
+    }).catch(function() {
+      // If toggle fails, recreate the track entirely
+      try { localTrack.stop(); localTrack.close(); } catch(e) {}
+      localTrack = null;
+      AgoraRTC.createMicrophoneAudioTrack({ encoderConfig: { sampleRate: 48000, stereo: false, bitrate: 64 } }).then(function(t) {
+        localTrack = t;
+        return client.publish([localTrack]);
+      }).catch(function() {
+        showError('Микрофон отключён после блокировки. Завершите и перезвоните.');
+      });
+    });
+  });
 
   function qualityLabel(q) {
     if (q === 0) return '❓ определяем…';
@@ -503,14 +537,16 @@
       updateInfoUsers();
 
       // Create microphone track and publish
+      // 48kHz/64kbps avoids the compression artifacts of speech_standard (16kHz/24kbps)
       localTrack = await AgoraRTC.createMicrophoneAudioTrack({
-        encoderConfig: 'speech_standard'
+        encoderConfig: { sampleRate: 48000, stereo: false, bitrate: 64 }
       });
       await client.publish([localTrack]);
 
       // Set correct state based on whether someone is already in the call
       var anyAudio = client.remoteUsers.some(function(u) { return u.hasAudio; });
       updateInfoUsers();
+      requestWakeLock(); // keep screen on so iOS doesn't revoke mic
       if (anyAudio) {
         setState('incall');
         if (!callTimer) startTimer();
@@ -531,6 +567,7 @@
 
   window.endCall = async function() {
     stopTimer();
+    releaseWakeLock();
     try {
       if (localTrack) {
         localTrack.stop();
