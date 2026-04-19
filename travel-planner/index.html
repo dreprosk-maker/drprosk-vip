@@ -4289,10 +4289,10 @@
   let DAY_PALETTE = THEMES.sunset.days;
   const WEATHER_EMOJI = ['☀️','☀️','⛅','☁️','☀️','🌤️','☁️'];
   const STORAGE_KEY = 'slc-trip-planner-v3';
-  // Build/deploy version — deploy.sh replaces 0419-0212 with current
+  // Build/deploy version — deploy.sh replaces 0419-0229 with current
   // timestamp before pushing. In development (un-deployed), shows "dev".
   const APP_VERSION = (function () {
-    const v = '0419-0212';
+    const v = '0419-0229';
     return v.indexOf('__') === 0 ? 'dev' : v;
   })();
   const OLD_KEY = 'slc-trip-planner-v2';
@@ -9079,15 +9079,36 @@ Date: ${dateISO || '(unknown)'}
     let raw;
     try { raw = localStorage.getItem(STORAGE_KEY) || ''; } catch (e) { return { ok: false, reason: 'no data' }; }
     if (!raw) return { ok: false, reason: 'no data' };
+    // Refuse to push corrupted local state — otherwise one bad write
+    // poisons the sheet and the other phone inherits the damage.
+    try { JSON.parse(raw); }
+    catch (e) { setSyncPillState('error'); console.warn('[sync] local data is invalid JSON, refusing to push'); return { ok: false, reason: 'bad local JSON' }; }
+    // Google Sheets has a hard 50,000-char limit per cell. Warn early
+    // so we catch it before silent truncation.
+    if (raw.length > 45000) {
+      console.warn('[sync] payload is', raw.length, 'chars — approaching Sheets 50K cell limit');
+    }
     SYNC.inflight = true;
     setSyncPillState('saving');
     try {
-      const u = SYNC.url
-        + (SYNC.url.includes('?') ? '&' : '?')
-        + 'secret=' + encodeURIComponent(SYNC_SECRET)
-        + '&action=save&key=' + encodeURIComponent(SYNC.key)
-        + '&data=' + encodeURIComponent(raw);
-      const r = await fetch(u, { method: 'GET' });
+      // NOTE: Previously this sent the payload as a GET query-string
+      // parameter, but Apps Script silently truncates query params past
+      // ~8KB — which corrupted the JSON and caused events / whole days
+      // to vanish after a round-trip. POST with text/plain avoids that
+      // limit AND dodges the CORS preflight that application/json would
+      // trigger (Apps Script web apps don't answer OPTIONS).
+      const body = JSON.stringify({
+        secret: SYNC_SECRET,
+        action: 'save',
+        key: SYNC.key,
+        data: raw
+      });
+      const r = await fetch(SYNC.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: body,
+        redirect: 'follow',
+      });
       const data = await r.json();
       if (data && data.error) {
         setSyncPillState('error');
