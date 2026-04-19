@@ -2800,6 +2800,75 @@
   }
   .sim-btn:active { transform: scale(0.97); }
 
+  /* Candidate cards — Gemini returns 2-4 plausible places, user picks one */
+  .sim-cand-list {
+    display: flex; flex-direction: column;
+    gap: 8px; margin-bottom: 14px;
+  }
+  .sim-cand {
+    text-align: left;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1.5px solid rgba(15,23,42,0.1);
+    background: rgba(255,255,255,0.7);
+    color: #0f172a;
+    font: inherit;
+    cursor: pointer;
+    transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.12s, background 0.12s;
+  }
+  body[data-mode="dark"] .sim-cand { background: rgba(15,23,42,0.5); color: #e2e8f0; border-color: rgba(255,255,255,0.1); }
+  .sim-cand:hover { transform: translateY(-1px); }
+  .sim-cand:active { transform: scale(0.99); }
+  .sim-cand.active {
+    border-color: #8b5cf6;
+    background: linear-gradient(135deg, rgba(139,92,246,0.18), rgba(236,72,153,0.12));
+    box-shadow: 0 4px 14px rgba(139,92,246,0.18);
+  }
+  body[data-mode="dark"] .sim-cand.active { background: linear-gradient(135deg, rgba(139,92,246,0.28), rgba(236,72,153,0.18)); }
+  .sim-cand-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px;
+    font-weight: 800;
+    font-size: 14px;
+  }
+  .sim-cand-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sim-cand-why {
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 4px;
+    line-height: 1.35;
+  }
+  body[data-mode="dark"] .sim-cand-why { color: #94a3b8; }
+  .sim-cand-addr {
+    font-size: 11.5px;
+    color: #475569;
+    margin-top: 4px;
+  }
+  body[data-mode="dark"] .sim-cand-addr { color: #cbd5e1; }
+
+  .sim-hint { margin-bottom: 14px; }
+  .sim-hint summary {
+    cursor: pointer;
+    font-size: 12.5px; font-weight: 700;
+    color: #6d28d9;
+    padding: 6px 0;
+    list-style: none;
+  }
+  body[data-mode="dark"] .sim-hint summary { color: #c4b5fd; }
+  .sim-hint summary::-webkit-details-marker { display: none; }
+  .sim-hint summary::before { content: '+ '; font-weight: 800; }
+  .sim-hint[open] summary::before { content: '− '; }
+  .sim-hint-body { display: flex; gap: 6px; margin-top: 6px; }
+  .sim-hint-body .sim-row-input { flex: 1; }
+
+  .sim-fields-title {
+    font-size: 11px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    color: #64748b;
+    margin: 6px 0 4px;
+  }
+  body[data-mode="dark"] .sim-fields-title { color: #94a3b8; }
+
   /* ======================================================================
      MOBILE GUIDE VIEW
      A true day-timeline (hour grid, events positioned by time, dual time
@@ -4308,10 +4377,10 @@
   let DAY_PALETTE = THEMES.sunset.days;
   const WEATHER_EMOJI = ['☀️','☀️','⛅','☁️','☀️','🌤️','☁️'];
   const STORAGE_KEY = 'slc-trip-planner-v4';
-  // Build/deploy version — deploy.sh replaces 0419-0421 with current
+  // Build/deploy version — deploy.sh replaces 0419-0435 with current
   // timestamp before pushing. In development (un-deployed), shows "dev".
   const APP_VERSION = (function () {
-    const v = '0419-0421';
+    const v = '0419-0435';
     return v.indexOf('__') === 0 ? 'dev' : v;
   })();
   // Legacy storage keys we migrate / fall back to in order.
@@ -7300,32 +7369,60 @@ Content:`;
   // For an event without an address, ask Gemini to look up the venue and
   // return structured info (address, city, state, phone, hours, website).
   // Show a modal asking the user to confirm before writing.
-  async function aiVenueLookup(title, location, dateISO) {
+  // Ask Gemini for 2-4 candidate venues. Returns { candidates: [...] }.
+  // Pass an optional `hint` string (extra context the user provides) so we
+  // can re-query when the first results don't include the right place.
+  async function aiVenueLookup(title, location, dateISO, hint) {
     if (!geminiApiKey) throw new Error('Set up your Gemini API key first via AI Import.');
     const schema = {
-      address: "full street address or null",
-      city: "city only or null",
-      state: "2-letter state/region or null",
-      phone: "phone or null",
-      website: "URL or null",
-      hours_today: "hours for the relevant day, e.g. '9am-9pm' or null",
-      notes: "anything useful (reservations needed, parking, dress code, busy times) or null",
-      confidence: "0..1 — how sure you are this is the right place"
+      candidates: [
+        {
+          name: "place name (may differ from the title — e.g. user typed 'breakfast', candidate is 'Eggs in the City')",
+          why_match: "1-sentence reason this is plausible (cuisine type, neighborhood, name match, etc.)",
+          address: "full street address or null",
+          city: "city only or null",
+          state: "2-letter state/region or null",
+          phone: "phone or null",
+          website: "URL or null",
+          hours_today: "hours for the relevant day, e.g. '9am-9pm' or null",
+          notes: "anything useful (reservations needed, parking, dress code, busy times) or null",
+          confidence: "0..1 how sure this is the place the user meant"
+        }
+      ],
+      clarifying_question: "short, specific question to ask the user when the title is ambiguous or no candidate is confident — e.g. 'Which Nordstrom Rack — 1300 E or Midvale?', or null if the top candidate is clearly right"
     };
-    const prompt = `You look up venues for travel planning and return ONLY JSON.
+    const prompt = `You help a traveler find a venue. Return ONLY JSON.
 
-Find the most likely venue based on the title and city/region context. Be honest about uncertainty.
+Provide 2 to 4 DIFFERENT plausible candidates ranked by how well they match the title + location context. Be diverse: include alternates if the title is generic (e.g. "lunch", "coffee", "museum"). Be honest about uncertainty in each candidate's confidence.
+
+ALWAYS ask a follow-up question (via clarifying_question) whenever ANY of the following is true:
+- The title is generic ("lunch", "shopping", "the hotel")
+- There are multiple plausible locations of the same chain/brand in the area
+- Your top candidate has confidence below 0.7
+- You had to make an assumption that could easily be wrong (cuisine, neighborhood, time)
+
+The clarifying_question should be short, specific, and answerable in one line. Prefer closed-form (pick from 2-3 named options) over open-ended.
 
 Return strict JSON matching:
 ${JSON.stringify(schema, null, 2)}
 
-Title: ${title || '(unknown)'}
-Location context: ${location || '(unknown)'}
-Date: ${dateISO || '(unknown)'}
+Rules:
+- Always return 2-4 candidates, never just one. If you can only think of one strong match, still include 1-2 reasonable alternates.
+- Each candidate needs at minimum a name, address (or city+state), and a confidence score.
+- Prefer real places. NEVER invent addresses. If unsure, leave address null and rely on name + city/state + confidence.
+- Phone numbers in standard format with country code where relevant.
+- Hours_today: short phrase ("9am-9pm" or "Closed Sundays").
+- Notes: practical tips only (reservations / parking / dress code / kid-friendly / typical wait).
+- Set clarifying_question to null ONLY when the top candidate is clearly correct (confidence ≥ 0.8 AND the title is unambiguous).
+
+Title:    ${title || '(unknown)'}
+Location: ${location || '(unknown)'}
+Date:     ${dateISO || '(unknown)'}
+${hint ? 'Additional hint from user: ' + hint : ''}
 `;
     const body = {
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json', temperature: 0.2 },
+      generationConfig: { responseMimeType: 'application/json', temperature: 0.4 },
     };
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
     const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -7333,11 +7430,16 @@ Date: ${dateISO || '(unknown)'}
     const data = await resp.json();
     const out = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
     if (!out) throw new Error('Empty response from Gemini');
-    try { return JSON.parse(out); } catch (e) {
+    let parsed;
+    try { parsed = JSON.parse(out); } catch (e) {
       const m = out.match(/\{[\s\S]*\}/);
-      if (m) return JSON.parse(m[0]);
-      throw new Error('Could not parse model output');
+      if (m) parsed = JSON.parse(m[0]);
+      else throw new Error('Could not parse model output');
     }
+    // Normalize: accept both { candidates: [...] } AND a bare single object
+    if (parsed && Array.isArray(parsed.candidates)) return parsed;
+    if (parsed && parsed.address) return { candidates: [parsed] };
+    return { candidates: [] };
   }
 
   function openSearchInfoModal(blockId) {
@@ -7348,6 +7450,7 @@ Date: ${dateISO || '(unknown)'}
     const dayIdx = day ? t.days.indexOf(day) : 0;
     const ctx = locationForDay(t, dayIdx);
     const dateISO = day ? fmtISO(day.date) : '';
+    let selectedIdx = 0; // which candidate is picked
 
     // Backdrop + modal
     const backdrop = document.createElement('div');
@@ -7358,13 +7461,7 @@ Date: ${dateISO || '(unknown)'}
           <div class="sim-title">🔎 Search missing info</div>
           <button class="sim-close" aria-label="Close">×</button>
         </div>
-        <div class="sim-body" id="sim-body">
-          <div class="sim-meta"><strong>${escapeHtml(b.title || 'Untitled')}</strong>${ctx ? ' · in <em>' + escapeHtml(ctx) + '</em>' : ''}</div>
-          <div class="sim-loading">
-            <div class="sim-spinner"></div>
-            <div>Asking Gemini to find this place…</div>
-          </div>
-        </div>
+        <div class="sim-body" id="sim-body"></div>
       </div>
     `;
     document.body.appendChild(backdrop);
@@ -7372,19 +7469,82 @@ Date: ${dateISO || '(unknown)'}
     backdrop.querySelector('.sim-close').addEventListener('click', close);
     backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
 
-    aiVenueLookup(b.title, ctx, dateISO).then(res => {
+    const safe = (v) => escapeHtml(String(v || '').trim());
+    const headerHtml = `<div class="sim-meta"><strong>${escapeHtml(b.title || 'Untitled')}</strong>${ctx ? ' · in <em>' + escapeHtml(ctx) + '</em>' : ''}</div>`;
+
+    function renderLoading(message) {
+      backdrop.querySelector('#sim-body').innerHTML = `
+        ${headerHtml}
+        <div class="sim-loading">
+          <div class="sim-spinner"></div>
+          <div>${escapeHtml(message || 'Asking Gemini to find this place…')}</div>
+        </div>
+      `;
+    }
+
+    function renderError(err) {
+      backdrop.querySelector('#sim-body').innerHTML = `
+        ${headerHtml}
+        <div class="sim-error">Couldn't look this up: ${escapeHtml(err.message || String(err))}</div>
+        <div class="sim-actions">
+          <button class="sim-btn sim-retry">Try again</button>
+          <button class="sim-btn sim-cancel">Close</button>
+        </div>
+      `;
       const body = backdrop.querySelector('#sim-body');
-      if (!body) return;
-      const safe = (v) => escapeHtml(String(v || '').trim());
-      const conf = typeof res.confidence === 'number' ? Math.round(res.confidence * 100) : null;
+      body.querySelector('.sim-cancel').addEventListener('click', close);
+      body.querySelector('.sim-retry').addEventListener('click', () => doLookup());
+    }
+
+    function renderCandidates(candidates, clarifyingQuestion) {
+      const body = backdrop.querySelector('#sim-body');
+      const askPlaceholder = clarifyingQuestion || "e.g. 'on Main St', 'Italian place', 'near the airport'";
+      if (!candidates || !candidates.length) {
+        body.innerHTML = `
+          ${headerHtml}
+          <div class="sim-error">${clarifyingQuestion ? escapeHtml(clarifyingQuestion) : "Gemini didn't return any candidates — give more context below."}</div>
+          <div class="sim-fields"><input type="text" class="sim-row-input" id="sim-hint-empty" placeholder="${escapeHtml(askPlaceholder)}"></div>
+          <div class="sim-actions">
+            <button class="sim-btn sim-cancel">Close</button>
+            <button class="sim-btn sim-search primary">Search again</button>
+          </div>
+        `;
+        body.querySelector('.sim-cancel').addEventListener('click', close);
+        const hintEl = body.querySelector('#sim-hint-empty');
+        const submit = () => { const h = hintEl.value.trim(); if (h) doLookup(h); };
+        body.querySelector('.sim-search').addEventListener('click', submit);
+        hintEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+        return;
+      }
+
+      // Pick the highest-confidence one by default
+      let best = 0, bestScore = -1;
+      candidates.forEach((c, i) => { const s = +c.confidence || 0; if (s > bestScore) { best = i; bestScore = s; } });
+      if (selectedIdx >= candidates.length) selectedIdx = best;
+
+      const cardsHtml = candidates.map((c, i) => {
+        const conf = typeof c.confidence === 'number' ? Math.round(c.confidence * 100) : null;
+        return `
+          <button class="sim-cand ${i === selectedIdx ? 'active' : ''}" data-idx="${i}">
+            <div class="sim-cand-head">
+              <span class="sim-cand-name">${safe(c.name) || '(unnamed)'}</span>
+              ${conf != null ? `<span class="sim-conf">${conf}%</span>` : ''}
+            </div>
+            ${c.why_match ? `<div class="sim-cand-why">${safe(c.why_match)}</div>` : ''}
+            ${c.address ? `<div class="sim-cand-addr">📍 ${safe(c.address)}</div>` : ''}
+          </button>
+        `;
+      }).join('');
+
+      const sel = candidates[selectedIdx] || {};
       const fields = [
-        { id: 'address', label: 'Address', val: safe(res.address) },
-        { id: 'city',    label: 'City',    val: safe(res.city) },
-        { id: 'state',   label: 'State',   val: safe(res.state) },
-        { id: 'phone',   label: 'Phone',   val: safe(res.phone) },
-        { id: 'website', label: 'Website', val: safe(res.website) },
-        { id: 'hours',   label: 'Hours',   val: safe(res.hours_today) },
-        { id: 'notes',   label: 'Notes',   val: safe(res.notes) },
+        { id: 'address', label: 'Address', val: safe(sel.address) },
+        { id: 'city',    label: 'City',    val: safe(sel.city) },
+        { id: 'state',   label: 'State',   val: safe(sel.state) },
+        { id: 'phone',   label: 'Phone',   val: safe(sel.phone) },
+        { id: 'website', label: 'Website', val: safe(sel.website) },
+        { id: 'hours',   label: 'Hours',   val: safe(sel.hours_today) },
+        { id: 'notes',   label: 'Notes',   val: safe(sel.notes) },
       ];
       const rows = fields.map(f => `
         <label class="sim-row ${f.val ? '' : 'empty'}">
@@ -7395,15 +7555,51 @@ Date: ${dateISO || '(unknown)'}
           </div>
         </label>
       `).join('');
+
+      // Auto-expand the hint panel when Gemini asked for clarification or
+      // when even the top candidate has low confidence (nothing feels right).
+      const topConf = Math.max(0, ...candidates.map(c => +c.confidence || 0));
+      const shouldExpand = !!clarifyingQuestion || topConf < 0.6;
+      const hintPlaceholder = clarifyingQuestion || "e.g. 'on Main St', 'Italian place', 'near the airport'";
+
       body.innerHTML = `
-        <div class="sim-meta"><strong>${escapeHtml(b.title || 'Untitled')}</strong>${ctx ? ' · in <em>' + escapeHtml(ctx) + '</em>' : ''}${conf != null ? ' · <span class="sim-conf">confidence ' + conf + '%</span>' : ''}</div>
+        ${headerHtml}
+        ${clarifyingQuestion ? `<div class="sim-meta" style="padding:10px 12px;border-radius:10px;background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.3);color:inherit;"><strong>🤔 Quick question:</strong> ${escapeHtml(clarifyingQuestion)}</div>` : ''}
+        <div class="sim-cand-list">${cardsHtml}</div>
+
+        <details class="sim-hint" ${shouldExpand ? 'open' : ''}>
+          <summary>${clarifyingQuestion ? 'Answer above / add detail' : 'Not right? Add more info and try again'}</summary>
+          <div class="sim-hint-body">
+            <input type="text" class="sim-row-input" id="sim-hint" placeholder="${escapeHtml(hintPlaceholder)}">
+            <button class="sim-btn sim-search primary">Search again</button>
+          </div>
+        </details>
+
+        <div class="sim-fields-title">Fields from selected candidate:</div>
         <div class="sim-fields">${rows}</div>
         <div class="sim-actions">
           <button class="sim-btn sim-cancel">Cancel</button>
-          <button class="sim-btn sim-apply primary">Apply selected</button>
+          <button class="sim-btn sim-apply primary">Apply selected to event</button>
         </div>
       `;
+
+      // Wire candidate cards
+      body.querySelectorAll('.sim-cand').forEach(card => {
+        card.addEventListener('click', () => {
+          selectedIdx = +card.dataset.idx;
+          renderCandidates(candidates, clarifyingQuestion);
+        });
+      });
+      // Hint search — button + Enter in the input both submit.
+      const hintInput = body.querySelector('#sim-hint');
+      const submitHint = () => { const h = hintInput.value.trim(); if (h) doLookup(h); };
+      body.querySelector('.sim-search').addEventListener('click', submitHint);
+      if (hintInput) hintInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); submitHint(); }
+      });
+      // Cancel
       body.querySelector('.sim-cancel').addEventListener('click', close);
+      // Apply
       body.querySelector('.sim-apply').addEventListener('click', () => {
         const get = (id) => {
           const cb = body.querySelector(`input[data-field="${id}"]`);
@@ -7415,16 +7611,14 @@ Date: ${dateISO || '(unknown)'}
           phone: get('phone'), website: get('website'),
           hours: get('hours'), notes: get('notes'),
         };
-        // Apply to the block
         if (v.address) b.address = v.address;
         const noteAdditions = [];
+        if (sel.name && !b.title) b.title = sel.name;
         if (v.phone)   noteAdditions.push('Phone: ' + v.phone);
         if (v.website) noteAdditions.push(v.website);
         if (v.hours)   noteAdditions.push('Hours: ' + v.hours);
         if (v.notes)   noteAdditions.push(v.notes);
         if (noteAdditions.length) b.notes = (b.notes ? b.notes + '\n\n' : '') + noteAdditions.join('\n');
-        // For the trip-level location we keep what's already in hotels/trip,
-        // but if the trip itself has no location we set it from city+state.
         if (!t.location && (v.city || v.state)) {
           t.location = [v.city, v.state].filter(Boolean).join(', ');
         }
@@ -7434,15 +7628,17 @@ Date: ${dateISO || '(unknown)'}
         scheduleWeatherRefresh();
         close();
       });
-    }).catch(err => {
-      const body = backdrop.querySelector('#sim-body');
-      if (!body) return;
-      body.innerHTML = `
-        <div class="sim-error">Couldn't look this up: ${escapeHtml(err.message || String(err))}</div>
-        <div class="sim-actions"><button class="sim-btn sim-cancel">Close</button></div>
-      `;
-      body.querySelector('.sim-cancel').addEventListener('click', close);
-    });
+    }
+
+    function doLookup(hint) {
+      renderLoading(hint ? 'Searching with your hint…' : 'Asking Gemini for a few options…');
+      aiVenueLookup(b.title, ctx, dateISO, hint)
+        .then(res => renderCandidates(res.candidates || [], res.clarifying_question || ''))
+        .catch(renderError);
+    }
+
+    // Kick off the first lookup
+    doLookup();
   }
 
   function compressImage(file, maxW, quality) {
