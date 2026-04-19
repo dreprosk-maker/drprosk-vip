@@ -4308,10 +4308,10 @@
   let DAY_PALETTE = THEMES.sunset.days;
   const WEATHER_EMOJI = ['☀️','☀️','⛅','☁️','☀️','🌤️','☁️'];
   const STORAGE_KEY = 'slc-trip-planner-v4';
-  // Build/deploy version — deploy.sh replaces 0419-0408 with current
+  // Build/deploy version — deploy.sh replaces 0419-0412 with current
   // timestamp before pushing. In development (un-deployed), shows "dev".
   const APP_VERSION = (function () {
-    const v = '0419-0408';
+    const v = '0419-0412';
     return v.indexOf('__') === 0 ? 'dev' : v;
   })();
   // Legacy storage keys we migrate / fall back to in order.
@@ -4326,8 +4326,8 @@
   let nextIds = { trip: 0, day: 0, block: 0, task: 0, hotel: 0 };
   let coordsCache = {}; // location string → { lat, lng, tz, label }
   const editingFields = new Set(); // "blockId:notes" or "blockId:address" while a new field is being entered
-  let currentTheme = 'sunset';
-  let currentMode = 'light';
+  let currentTheme = 'steel';
+  let currentMode = 'dark';
   let sidebarCollapsed = false;
   let controlsExpanded = false;
 
@@ -4537,8 +4537,8 @@
         editMode = !!data.editMode;
         nextIds = Object.assign({ trip: trips.length, day: 0, block: 0, task: 0, hotel: 0 }, data.nextIds || {});
         coordsCache = data.coordsCache || {};
-        currentTheme = data.theme && THEMES[data.theme] ? data.theme : 'sunset';
-        currentMode = data.mode === 'dark' ? 'dark' : 'light';
+        currentTheme = data.theme && THEMES[data.theme] ? data.theme : 'steel';
+        currentMode = data.mode === 'light' ? 'light' : 'dark';
         sidebarCollapsed = !!data.sidebarCollapsed;
         controlsExpanded = !!data.controlsExpanded;
         if (Array.isArray(data.categories) && data.categories.length) {
