@@ -4308,10 +4308,10 @@
   let DAY_PALETTE = THEMES.sunset.days;
   const WEATHER_EMOJI = ['☀️','☀️','⛅','☁️','☀️','🌤️','☁️'];
   const STORAGE_KEY = 'slc-trip-planner-v4';
-  // Build/deploy version — deploy.sh replaces 0419-0412 with current
+  // Build/deploy version — deploy.sh replaces 0419-0421 with current
   // timestamp before pushing. In development (un-deployed), shows "dev".
   const APP_VERSION = (function () {
-    const v = '0419-0412';
+    const v = '0419-0421';
     return v.indexOf('__') === 0 ? 'dev' : v;
   })();
   // Legacy storage keys we migrate / fall back to in order.
@@ -7049,7 +7049,7 @@
         </div>
         <div class="im-key-panel" id="im-key-wrap" ${geminiApiKey ? 'style="display:none"' : ''}>
           <label>🔑 Gemini API key (one-time setup)</label>
-          <div class="im-hint">Free at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. Stored only in this browser.</div>
+          <div class="im-hint">Free at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. Synced to your cloud so every signed-in device shares it.</div>
           <input type="password" class="im-key-input" id="im-key" placeholder="AIza…" value="${escapeHtml(geminiApiKey)}">
         </div>
         <div class="im-drop-zone" id="im-drop">
@@ -7100,6 +7100,9 @@
     if (keyEl) keyEl.addEventListener('input', () => {
       geminiApiKey = keyEl.value.trim();
       localStorage.setItem('gemini-api-key', geminiApiKey);
+      // Push to Firestore so this key reaches every signed-in device.
+      // The 2s debounce inside pushGeminiKey prevents per-keystroke writes.
+      if (typeof pushGeminiKey === 'function') pushGeminiKey();
     });
 
     dropEl.addEventListener('click', () => fileEl.click());
@@ -9140,6 +9143,45 @@ Date: ${dateISO || '(unknown)'}
     } catch (e) { return null; }
   }
 
+  // ===== Gemini API key cloud sync =====
+  // The key lives as `geminiKey` on the same Firestore doc as the trip
+  // payload. We never overwrite a local key with empty cloud data — only
+  // bring a non-empty cloud value down. The push side is debounced to
+  // avoid firing on every keystroke.
+  function _hydrateGeminiKeyFromCloud(data) {
+    try {
+      const remoteKey = String((data && data.geminiKey) || '').trim();
+      if (!remoteKey) return;
+      if (remoteKey === geminiApiKey) return;
+      geminiApiKey = remoteKey;
+      try { localStorage.setItem('gemini-api-key', remoteKey); } catch (e) {}
+      // If the modal is open, reflect the new key in the input + hide the panel.
+      try {
+        const input = document.querySelector('#im-key');
+        if (input) input.value = remoteKey;
+        const wrap = document.querySelector('#im-key-wrap');
+        if (wrap) wrap.style.display = 'none';
+      } catch (e) {}
+    } catch (e) {}
+  }
+  let _geminiKeyPushTimer = null;
+  function pushGeminiKey() {
+    if (!SYNC.key) return;
+    clearTimeout(_geminiKeyPushTimer);
+    _geminiKeyPushTimer = setTimeout(async () => {
+      const db = _fs();
+      if (!db || !SYNC.key) return;
+      try {
+        await db.collection(SYNC_COLLECTION).doc(SYNC.key).set({
+          geminiKey: geminiApiKey || '',
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+      } catch (e) {
+        console.warn('[sync] gemini key push failed:', e && e.message);
+      }
+    }, 1500);
+  }
+
   // Update the little cloud pill in the mobile header to reflect sync state.
   function setSyncPillState(state) {
     const p = document.getElementById('mg-sync-pill');
@@ -9188,6 +9230,9 @@ Date: ${dateISO || '(unknown)'}
       const snap = await db.collection(SYNC_COLLECTION).doc(SYNC.key).get();
       if (!snap.exists) return { ok: true, empty: true };
       const data = snap.data() || {};
+      // Pick up the shared Gemini key first — even if the trip payload
+      // hasn't changed, the key may have been entered on another device.
+      _hydrateGeminiKeyFromCloud(data);
       const remoteRaw = String(data.payload || '');
       if (!remoteRaw) return { ok: true, empty: true };
       const localRaw = (localStorage.getItem(STORAGE_KEY) || '').trim();
@@ -9261,12 +9306,15 @@ Date: ${dateISO || '(unknown)'}
             // Firestore fires onSnapshot immediately for local pushes too.
             if (snap.metadata && snap.metadata.hasPendingWrites) return;
             if (!snap.exists) return;
+            const data = snap.data() || {};
+            // Hydrate the Gemini key even if we skip the payload branch —
+            // a peer device may have just typed in the key for the first time.
+            _hydrateGeminiKeyFromCloud(data);
             // If we have a debounced push scheduled, our local state is
             // newer than what just arrived — skip. The push will fire in
             // <2s and eventually propagate the merged local state.
             if (SYNC.pushTimer) return;
             if (SYNC.inflight) return;
-            const data = snap.data() || {};
             const remoteRaw = String(data.payload || '');
             if (!remoteRaw) return;
             let localRaw = '';
