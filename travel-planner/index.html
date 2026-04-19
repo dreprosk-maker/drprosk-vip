@@ -3348,6 +3348,55 @@
   .mg-trans-weather .hi { color: #f97316; font-weight: 800; }
   .mg-trans-weather .lo { color: #60a5fa; font-weight: 800; margin-left: 3px; }
 
+  /* Hotel pill — sits between the date circle and the weather pill on each
+     day's transition header. Reads as a distinct button-like pill (warmer
+     amber/orange tint) so the eye can tell "where I'm staying" apart from
+     "what the weather's like". Truncates long hotel names with ellipsis. */
+  .mg-trans-hotel {
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: 42%;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 14px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(255,247,237,0.98), rgba(254,215,170,0.92));
+    backdrop-filter: blur(14px) saturate(180%);
+    border: 1px solid rgba(251,146,60,0.45);
+    box-shadow:
+      0 4px 14px rgba(249,115,22,0.26),
+      inset 0 1px 0 rgba(255,255,255,0.75),
+      inset 0 -2px 0 rgba(194,65,12,0.08);
+    font-size: 12.5px; font-weight: 700;
+    color: #7c2d12;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
+                box-shadow 0.15s ease;
+  }
+  .mg-trans-hotel:active {
+    transform: scale(0.95) translateY(1px);
+    box-shadow:
+      0 2px 6px rgba(249,115,22,0.2),
+      inset 0 1px 0 rgba(255,255,255,0.6),
+      inset 0 -1px 0 rgba(194,65,12,0.12);
+  }
+  .mg-trans-hotel .icon { font-size: 15px; line-height: 1; flex-shrink: 0; }
+  .mg-trans-hotel .name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    letter-spacing: 0.01em;
+  }
+  body[data-mode="dark"] .mg-trans-hotel {
+    background: linear-gradient(135deg, rgba(67,20,7,0.95), rgba(120,53,15,0.85));
+    border-color: rgba(251,146,60,0.35);
+    color: #fed7aa;
+    box-shadow:
+      0 4px 14px rgba(0,0,0,0.4),
+      inset 0 1px 0 rgba(255,255,255,0.08),
+      inset 0 -2px 0 rgba(0,0,0,0.2);
+  }
+
   /* Day lane — matches the desktop .col-body exactly: neutral background
      with the soft time-of-day gradient overlay (dawn → midday → dusk →
      night in delicate pastels). This is what the wide version uses behind
@@ -3411,14 +3460,79 @@
      gradient bg, glass pin, wheel/fork art for transit/food). The
      .mg-mobile-event class adds the entrance animation and the now-pulse. */
   .mg-mobile-event {
-    /* Narrower than desktop to leave breathing room around the day edges */
-    left: 14px !important;
+    /* Narrower than desktop to leave breathing room around the day edges.
+       The `left` is driven by inline style so overlap-layer tiles can shift
+       right; `right` stays pinned to the day edge. */
+    left: 14px;
     right: 10px !important;
     /* Animation in */
     animation: mgEventPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
     transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s;
     z-index: 3;
   }
+  /* Layered (overlapping) tiles — each deeper layer peeks further right so
+     the tile beneath is still visible on the left. The shift distance is
+     set as inline `left` in the render function; this rule just tunes the
+     shadow so layers read as stacked cards rather than clones. */
+  .mg-mobile-event[data-overlap-layer="1"],
+  .mg-mobile-event[data-overlap-layer="2"],
+  .mg-mobile-event[data-overlap-layer="3"],
+  .mg-mobile-event[data-overlap-layer="4"] {
+    box-shadow:
+      -3px 3px 8px rgba(15,23,42,0.12),
+      0 6px 18px rgba(15,23,42,0.14);
+  }
+  /* Small category-emoji badge that peeks out on the left side of layered
+     tiles, making it obvious what each stacked layer is. */
+  .mg-mobile-event .mg-layer-badge {
+    position: absolute;
+    left: -12px;
+    top: 6px;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.96);
+    border: 1.5px solid rgba(255,255,255,0.85);
+    box-shadow: 0 3px 8px rgba(15,23,42,0.22);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    line-height: 1;
+    z-index: 22;
+    pointer-events: none;
+  }
+  body[data-mode="dark"] .mg-mobile-event .mg-layer-badge {
+    background: rgba(30,41,59,0.95);
+    border-color: rgba(255,255,255,0.18);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.5);
+  }
+  /* Active (tapped) tile — the new interaction model: tap the tile to
+     activate it (resize handles pop in, title becomes clearly tappable),
+     tap again on the title to open the edit popup, drag the body to move.
+     An inactive tile shows neither resize handles nor the "grabbable" cue. */
+  .mg-mobile-event .resize-handle.mg-resize { opacity: 0; pointer-events: none; transition: opacity 0.15s; }
+  .mg-mobile-event.is-active .resize-handle.mg-resize { opacity: 1; pointer-events: auto; }
+  .mg-mobile-event.is-active {
+    outline: 2px solid rgba(139,92,246,0.55);
+    outline-offset: 1px;
+    box-shadow:
+      0 0 0 3px rgba(139,92,246,0.18),
+      0 10px 24px rgba(99,102,241,0.28);
+  }
+  body[data-mode="dark"] .mg-mobile-event.is-active {
+    outline-color: rgba(167,139,250,0.7);
+    box-shadow:
+      0 0 0 3px rgba(167,139,250,0.25),
+      0 10px 24px rgba(0,0,0,0.5);
+  }
+  .mg-mobile-event.is-active .block-title {
+    text-decoration: underline;
+    text-decoration-color: rgba(139,92,246,0.55);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+  }
+  /* Dragging the body to move — disable the default :active scale so the
+     move feel stays 1:1 with the finger. */
+  .mg-mobile-event.is-dragging { transition: none !important; cursor: grabbing; opacity: 0.92; }
+  .mg-mobile-event.is-dragging .block-bg { filter: brightness(1.05); }
   /* A tile that starts right at the day's first minute has its top edge
      facing the 10px inter-day break — square off that corner. Same for
      tiles that end exactly at the last minute. */
@@ -3720,6 +3834,99 @@
     50%      { opacity: 0.5; transform: scale(0.75); }
   }
   .mg-gap-pill .arr { font-size: 10px; opacity: 0.6; }
+
+  /* Tall glass card — when the gap is roomy (>= ~110px high), instead of
+     showing inline action chips, we collapse the whole gap into a single
+     frosted-glass button that fills the gap vertically and opens the gap
+     popover on tap. Reads as one tappable "Morning is open" card. */
+  .mg-gap.tall { justify-content: stretch; padding: 6px 4px; pointer-events: none; }
+  .mg-gap-card {
+    pointer-events: auto;
+    position: relative;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 6px;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    padding: 16px 14px;
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.7);
+    background: linear-gradient(135deg, rgba(255,255,255,0.75), rgba(243,232,255,0.55));
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    box-shadow:
+      0 6px 20px rgba(99,102,241,0.18),
+      inset 0 1px 0 rgba(255,255,255,0.7),
+      inset 0 -2px 0 rgba(139,92,246,0.08);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s;
+    overflow: hidden;
+  }
+  .mg-gap-card:active {
+    transform: scale(0.985) translateY(1px);
+    box-shadow:
+      0 3px 10px rgba(99,102,241,0.15),
+      inset 0 1px 0 rgba(255,255,255,0.6),
+      inset 0 -1px 0 rgba(139,92,246,0.1);
+  }
+  .mg-gap-card::before {
+    content: '';
+    position: absolute;
+    top: 10px; left: 12px; right: 12px;
+    height: 2px;
+    background: linear-gradient(90deg,
+      rgba(139,92,246,0) 0%,
+      rgba(139,92,246,0.35) 50%,
+      rgba(236,72,153,0) 100%);
+    border-radius: 2px;
+    opacity: 0.65;
+  }
+  .mg-gap-card::after {
+    content: '';
+    position: absolute;
+    bottom: 10px; left: 12px; right: 12px;
+    height: 2px;
+    background: linear-gradient(90deg,
+      rgba(236,72,153,0) 0%,
+      rgba(236,72,153,0.3) 50%,
+      rgba(139,92,246,0) 100%);
+    border-radius: 2px;
+    opacity: 0.55;
+  }
+  .mg-gap-card-label {
+    font-size: 15px; font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, #6366f1, #ec4899);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .mg-gap-card-hint {
+    font-size: 11px; font-weight: 600;
+    color: rgba(76, 29, 149, 0.65);
+    letter-spacing: 0.03em;
+  }
+  .mg-gap-card-arr {
+    position: absolute;
+    right: 14px; top: 50%; transform: translateY(-50%);
+    font-size: 14px;
+    color: rgba(139, 92, 246, 0.55);
+  }
+  body[data-mode="dark"] .mg-gap-card {
+    background: linear-gradient(135deg, rgba(30,27,75,0.7), rgba(49,46,129,0.5));
+    border-color: rgba(167,139,250,0.25);
+    box-shadow:
+      0 6px 20px rgba(0,0,0,0.4),
+      inset 0 1px 0 rgba(255,255,255,0.08),
+      inset 0 -2px 0 rgba(0,0,0,0.2);
+  }
+  body[data-mode="dark"] .mg-gap-card-label {
+    background: linear-gradient(135deg, #a78bfa, #f0abfc);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  body[data-mode="dark"] .mg-gap-card-hint { color: rgba(196,181,253,0.75); }
+  body[data-mode="dark"] .mg-gap-card-arr { color: rgba(196,181,253,0.55); }
 
   /* Popover that opens from a compact gap pill */
   .mg-gap-popover-backdrop {
@@ -4461,10 +4668,10 @@
   let DAY_PALETTE = THEMES.sunset.days;
   const WEATHER_EMOJI = ['☀️','☀️','⛅','☁️','☀️','🌤️','☁️'];
   const STORAGE_KEY = 'slc-trip-planner-v4';
-  // Build/deploy version — deploy.sh replaces 0419-2045 with current
+  // Build/deploy version — deploy.sh replaces 0419-2102 with current
   // timestamp before pushing. In development (un-deployed), shows "dev".
   const APP_VERSION = (function () {
-    const v = '0419-2045';
+    const v = '0419-2102';
     return v.indexOf('__') === 0 ? 'dev' : v;
   })();
   // Legacy storage keys we migrate / fall back to in order.
@@ -8449,8 +8656,40 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
     if (should !== MG.active) {
       MG.active = should;
       document.body.classList.toggle('mobile-guide-active', should);
-      if (should) renderMobile();
+      if (should) {
+        renderMobile();
+        // Center the first event (or the now-line today) in the viewport on
+        // first open. Run after the render pass so layout is ready.
+        requestAnimationFrame(() => {
+          if (MG.active) mgCenterOnFirstEvent();
+        });
+      }
     }
+  }
+
+  // Scroll the mobile timeline so the first event of the trip (or today's
+  // now-line, whichever is relevant) sits in the vertical center of the view.
+  function mgCenterOnFirstEvent() {
+    if (!MG.scroll || !MG.timeline) return;
+    const viewH = MG.scroll.clientHeight;
+    const _nowD = getNowDate();
+    const nowISO = fmtISO(_nowD);
+    const nowMin = _nowD.getHours() * 60 + _nowD.getMinutes();
+    const todayEl = MG.timeline.querySelector(`.mg-day[data-day-iso="${nowISO}"]`);
+    let scrollY;
+    if (todayEl) {
+      const body = todayEl.querySelector('.mg-day-body');
+      scrollY = todayEl.offsetTop + (body ? mgMinutesToPx(nowMin) : 0) - viewH / 2;
+    } else {
+      // No "today" in trip — scroll to first event on the first day
+      const firstEv = MG.timeline.querySelector('.mg-event, .mg-mobile-event');
+      if (firstEv) {
+        scrollY = firstEv.offsetTop + firstEv.offsetHeight / 2 - viewH / 2;
+      } else {
+        scrollY = 0;
+      }
+    }
+    MG.scroll.scrollTop = Math.max(0, scrollY);
   }
 
   function mgMinutesToPx(mins) {
@@ -8666,11 +8905,11 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
     const nowISO = fmtISO(_nowD);
     const nowMin = _nowD.getHours() * 60 + _nowD.getMinutes();
 
-    // Dynamically widen the visible hour range so every event in the trip
-    // is visible. Default to 6am-midnight, but extend earlier/later if any
-    // event falls outside that window. This prevents "missing" tiles for
-    // 5am flights or 1am late nights.
-    let earliest = 6 * 60, latest = 24 * 60;
+    // Mobile: hide unused hours — show only the span that actually contains
+    // events (blocks + hotels), with ~4hr of empty padding on each side so
+    // there's breathing room above the first event and below the last.
+    // Fallback: if the trip has zero events, default to 8am-8pm.
+    let earliest = Infinity, latest = -Infinity;
     blocks.forEach(b => {
       if (b.start < earliest) earliest = b.start;
       if (b.end   > latest)   latest   = b.end;
@@ -8679,9 +8918,13 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
       if (h.checkInTime  != null && h.checkInTime  < earliest) earliest = h.checkInTime;
       if (h.checkOutTime != null && h.checkOutTime > latest)   latest   = h.checkOutTime;
     });
-    // Snap to whole hours, with at least 30min padding on each end
-    MG.startHour = Math.max(0, Math.floor((earliest - 30) / 60));
-    MG.endHour   = Math.min(24, Math.ceil((latest + 30) / 60));
+    if (!isFinite(earliest) || !isFinite(latest)) {
+      earliest = 8 * 60;
+      latest   = 20 * 60;
+    }
+    const MG_MOBILE_PAD_HRS = 4;
+    MG.startHour = Math.max(0,  Math.floor((earliest - MG_MOBILE_PAD_HRS * 60) / 60));
+    MG.endHour   = Math.min(24, Math.ceil ((latest   + MG_MOBILE_PAD_HRS * 60) / 60));
     if (MG.endHour <= MG.startHour) MG.endHour = MG.startHour + 1;
 
     // Update header
@@ -8729,6 +8972,28 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
         return `<div class="mg-hotel-band" data-mg-s="${startMin}" data-mg-e="${endMin}" data-mg-minh="12" style="top:${top}px;height:${height}px"><span>🏨 ${escapeHtml(h.name || 'Hotel')}</span></div>`;
       }).join('');
 
+      // Overlap layering — when two or more events share the same time
+      // window, stack them as layers. The layer index drives both the
+      // horizontal shift (each layer peeks 20px further right, revealing the
+      // tile beneath) and the z-order (higher layers paint on top). This
+      // makes overlapping plans readable at a glance without forcing a
+      // calendar-style side-by-side column split that would squash titles.
+      const overlapLayerById = (function() {
+        const map = new Map();
+        const sorted = dayBlocks.slice().sort((a, b) => a.start - b.start || a.end - b.end);
+        const active = []; // index-aligned slots — null = free
+        for (const blk of sorted) {
+          for (let i = 0; i < active.length; i++) {
+            if (active[i] && active[i].end <= blk.start) active[i] = null;
+          }
+          let slot = 0;
+          while (active[slot]) slot++;
+          active[slot] = blk;
+          map.set(blk.id, slot);
+        }
+        return map;
+      })();
+      const MG_OVERLAP_SHIFT_PX = 20;
       const eventsHtml = dayBlocks.map((b, evIdx) => {
         const cat = getCat(b.cat);
         const top = mgMinutesToPx(b.start);
@@ -8738,6 +9003,8 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
         const isPast = iso < nowISO || (iso === nowISO && b.end < nowMin);
         const isNow = iso === nowISO && b.start <= nowMin && b.end >= nowMin;
         const isCompact = height < 58;
+        const layer = overlapLayerById.get(b.id) || 0;
+        const leftPx = layer * MG_OVERLAP_SHIFT_PX;
         // Square off corners at the top/bottom of a day so the 10px break
         // reads as a proper break between days.
         const edgeTop = b.start <= MG.startHour * 60 + 5;
@@ -8771,16 +9038,24 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
           }
         }
         const actionRowHtml = showActions ? mgEventActions(b) : '';
+        // On layered tiles we show a small category-emoji circle on the far
+        // left so you can always tell which plan is stacked where. Layer 0
+        // still gets a dot so the visual rhythm is consistent.
+        const layerBadgeHtml = layer > 0
+          ? `<span class="mg-layer-badge" aria-hidden="true">${cat.icon}</span>`
+          : '';
         return `
           <div class="block cat-${b.cat} mg-mobile-event ${isPast ? 'is-past' : ''} ${isNow ? 'is-now' : ''} ${isCompact ? 'compact' : ''} ${edgeTop ? 'edge-top' : ''} ${edgeBottom ? 'edge-bottom' : ''}"
-               style="top:${top}px;height:${height}px;animation-delay:${animDelay}s;${mgCatColorVars(b.cat)}"
+               style="top:${top}px;height:${height}px;left:${14 + leftPx}px;animation-delay:${animDelay}s;z-index:${10 + layer};${mgCatColorVars(b.cat)}"
                data-block-id="${b.id}"
+               data-overlap-layer="${layer}"
                data-mg-s="${b.start}" data-mg-e="${b.end}" data-mg-minh="22" data-mg-bpad="2">
             <div class="block-bg"></div>
+            ${layerBadgeHtml}
             <div class="resize-handle top mg-resize" data-resize="top" data-block-id="${b.id}"></div>
             <div class="block-content">
               <div class="block-row title-row">
-                <span class="block-title">${escapeHtml(b.title || 'Untitled')}</span>
+                <span class="block-title" data-block-id="${b.id}" role="button" tabindex="0" aria-label="Edit ${escapeHtml(b.title || 'event')}">${escapeHtml(b.title || 'Untitled')}</span>
                 <span class="block-time" style="margin-left:auto;font-size:10.5px;font-weight:700;color:var(--blk-notes,#64748b);font-variant-numeric:tabular-nums;">${formatRange(b.start, b.end)}</span>
               </div>
               ${bodyRows.join('')}
@@ -8794,8 +9069,13 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
 
       // Detached pins — rendered as siblings of events in the lane so the
       // pin always paints on top, even when the next tile starts right
-      // where the previous one ended. Higher z-index than any event.
+      // where the previous one ended. Higher z-index than any event. For
+      // layered (overlap) tiles we suppress the pin because the layer
+      // badge on the tile already shows the category icon, and two icons
+      // stacked over each other would read as noise.
       const pinsHtml = dayBlocks.map((b) => {
+        const layer = overlapLayerById.get(b.id) || 0;
+        if (layer > 0) return '';
         const cat = getCat(b.cat);
         const top = mgMinutesToPx(b.start) - 12;
         const isPast = iso < nowISO || (iso === nowISO && b.end < nowMin);
@@ -8862,8 +9142,10 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
       const gapsHtml = qualified.map((g, gi) => {
         const top = mgMinutesToPx(g.start);
         const height = Math.max(22, mgMinutesToPx(g.end) - top);
-        // Full chip layout needs breathing room (~110px). Otherwise collapse
-        // into a single glass pill button that opens a popover with actions.
+        // Always render the gap as a single glass button — tap it to open a
+        // popover listing the action tiles. The short compact variant uses a
+        // pill look; the tall variant fills the gap with a roomier glass
+        // card, but both trigger the same popover.
         const isCompact = height < 110;
         if (isCompact) {
           return `<div class="mg-gap compact" data-mg-s="${g.start}" data-mg-e="${g.end}" data-mg-minh="22" style="top:${top}px;height:${height}px">
@@ -8875,9 +9157,12 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
           </div>`;
         }
         return `
-          <div class="mg-gap" data-mg-s="${g.start}" data-mg-e="${g.end}" data-mg-minh="22" style="top:${top}px;height:${height}px">
-            <div class="mg-gap-label">${g.label}</div>
-            ${mgGapActionsHtml(locCtx)}
+          <div class="mg-gap tall" data-mg-s="${g.start}" data-mg-e="${g.end}" data-mg-minh="22" style="top:${top}px;height:${height}px">
+            <button class="mg-gap-card" data-gap-actions="${encodeURIComponent(locCtx || '')}" data-gap-label="${escapeHtml(g.label)}">
+              <span class="mg-gap-card-label">${g.label}</span>
+              <span class="mg-gap-card-hint">Tap to plan</span>
+              <span class="mg-gap-card-arr">▸</span>
+            </button>
           </div>
         `;
       }).join('');
@@ -8894,18 +9179,35 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
       // day's date + weather as a circle + pill, with a line in between
       // — so the gap between days reads as a designed dashboard transition,
       // not an empty slit cutting through hour labels.
-      if (di > 0) {
+      {
+        // Emit the transition header (date circle + hotel pill + line +
+        // weather pill) for every day — including day 1 — so the trip opens
+        // with the same designed header above the first day's timeline.
         const tdow = dow;
         const tnum = d.date.getDate();
         const wIcon = w ? codeToEmoji(w.code) : '…';
         const wTemps = w ? `<span class="hi">${w.max}°</span><span class="lo">${w.min}°</span>` : '<span class="lo">—°</span>';
+        const firstCls = di === 0 ? ' is-first' : '';
+        // Hotel pill — shows the hotel this day is anchored to, between the
+        // date circle and the weather pill. Tinted orange/amber to read as a
+        // distinct "button-like" pill next to the blue weather pill.
+        let hotelPillHtml = '';
+        if (dayHotels.length > 0) {
+          const h0 = dayHotels[0];
+          const hName = escapeHtml(h0.name || 'Hotel');
+          hotelPillHtml = `<button class="mg-trans-hotel" data-jump-iso="${iso}" data-hotel-id="${escapeHtml(h0.id || '')}" aria-label="Hotel: ${hName}">
+            <span class="icon">🏨</span>
+            <span class="name">${hName}</span>
+          </button>`;
+        }
         parts.push(`
-          <div class="mg-day-transition" data-jump-iso="${iso}">
+          <div class="mg-day-transition${firstCls}" data-jump-iso="${iso}">
             <div class="mg-trans-inner">
               <button class="mg-trans-date" data-jump-iso="${iso}" aria-label="Jump to ${tdow} ${tnum}">
                 <div class="mg-trans-dow">${tdow}</div>
                 <div class="mg-trans-date-num">${tnum}</div>
               </button>
+              ${hotelPillHtml}
               <div class="mg-trans-line"></div>
               <button class="mg-trans-weather" data-jump-iso="${iso}" aria-label="Weather">
                 <span class="icon">${wIcon}</span>
@@ -8956,8 +9258,10 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
         if (target) MG.scroll.scrollTo({ top: Math.max(0, target.offsetTop - 10), behavior: 'smooth' });
       });
     });
-    // Wire compact gap pills to open an action popover
-    MG.timeline.querySelectorAll('.mg-gap-pill').forEach(btn => {
+    // Wire gap pills AND gap cards to open an action popover — both the
+    // short compact pill and the tall glass card share the same popover
+    // trigger so every open-time gap feels like a single tappable button.
+    MG.timeline.querySelectorAll('.mg-gap-pill, .mg-gap-card').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.preventDefault(); e.stopPropagation();
         const loc = decodeURIComponent(btn.dataset.gapActions || '');
@@ -9202,19 +9506,116 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
   // works reliably because we setPointerCapture on the handle so it owns
   // the gesture for its entire duration (no conflicts with page scroll or
   // the long-press-to-create handler on the lane).
+  //
+  // Interaction model:
+  //   • Tap a tile           → activates it (resize handles pop in).
+  //   • Tap the title        → opens the edit popup.
+  //   • Drag the tile body   → shifts the event in time (preserves duration).
+  //   • Tap elsewhere        → deactivates.
   function attachMobileTileTouch(el) {
     const blockId = el.dataset.blockId;
     if (!blockId) return;
     const findBlock = () => (T()?.blocks || []).find(b => b.id === blockId);
     const topH = el.querySelector('.resize-handle.top');
     const botH = el.querySelector('.resize-handle.bottom');
+    const titleEl = el.querySelector('.block-title');
 
-    // Tap on the tile (not on a handle/link/button) → open edit popup
+    // Title opens the edit popup directly — regardless of whether the tile
+    // is already active. This is the fastest path to "edit" and should not
+    // require two taps.
+    if (titleEl) {
+      titleEl.addEventListener('click', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        const b = findBlock(); if (!b) return;
+        if (typeof openBlockPopup === 'function') openBlockPopup(b, el);
+      });
+    }
+
+    // Tap on the tile body (not the title/handle/link) activates the tile.
+    // If it's already active, a non-title tap deactivates it so the user
+    // can dismiss without scrolling away.
     el.addEventListener('click', (e) => {
-      if (e.target.closest('.resize-handle, a, button, input, [contenteditable]')) return;
-      const b = findBlock(); if (!b) return;
-      if (typeof openBlockPopup === 'function') openBlockPopup(b, el);
+      if (e.target.closest('.resize-handle, a, button, input, [contenteditable], .block-title')) return;
+      // If a drag just finished, the click fires but should be swallowed.
+      if (el._dragJustEnded) { el._dragJustEnded = false; e.preventDefault(); return; }
+      const alreadyActive = el.classList.contains('is-active');
+      // Deactivate every other tile — only one active at a time.
+      MG.timeline.querySelectorAll('.mg-mobile-event.is-active').forEach(t => {
+        if (t !== el) t.classList.remove('is-active');
+      });
+      el.classList.toggle('is-active', !alreadyActive);
     });
+
+    // Drag the tile body to shift the event in time. Long-press threshold
+    // (220ms) disambiguates from a tap; any movement past 4px before the
+    // threshold is treated as a scroll, not a drag.
+    let pressTimer = null;
+    let dragState = null; // { startY, origStart, origEnd, pointerId }
+    const onBodyPointerDown = (e) => {
+      if (!e.isPrimary) return;
+      if (e.target.closest('.resize-handle, a, button, input, [contenteditable], .block-title')) return;
+      const b = findBlock(); if (!b) return;
+      const startY = e.clientY, startX = e.clientX;
+      const origStart = b.start, origEnd = b.end;
+      let moved = false;
+      const onMoveBeforeDrag = (mv) => {
+        if (Math.abs(mv.clientY - startY) > 4 || Math.abs(mv.clientX - startX) > 4) {
+          moved = true;
+          cleanup();
+        }
+      };
+      const cleanup = () => {
+        if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+        el.removeEventListener('pointermove', onMoveBeforeDrag);
+        el.removeEventListener('pointerup', cleanup);
+        el.removeEventListener('pointercancel', cleanup);
+      };
+      el.addEventListener('pointermove', onMoveBeforeDrag);
+      el.addEventListener('pointerup', cleanup);
+      el.addEventListener('pointercancel', cleanup);
+      pressTimer = setTimeout(() => {
+        pressTimer = null;
+        if (moved) return;
+        cleanup();
+        // Begin drag
+        try { el.setPointerCapture(e.pointerId); } catch (_) {}
+        dragState = { startY, origStart, origEnd, pointerId: e.pointerId };
+        el.classList.add('is-dragging');
+        // Haptic / visual cue
+        if (navigator.vibrate) { try { navigator.vibrate(10); } catch (_) {} }
+      }, 220);
+    };
+    const onBodyPointerMove = (e) => {
+      if (!dragState || e.pointerId !== dragState.pointerId) return;
+      const b = findBlock(); if (!b) return;
+      e.preventDefault();
+      const dy = e.clientY - dragState.startY;
+      const dMin = Math.round((dy / MG.pxPerHour * 60) / 15) * 15;
+      const duration = dragState.origEnd - dragState.origStart;
+      let ns = dragState.origStart + dMin;
+      ns = Math.max(MG.startHour * 60, Math.min(MG.endHour * 60 - duration, ns));
+      b.start = ns;
+      b.end = ns + duration;
+      const top = mgMinutesToPx(b.start);
+      const height = Math.max(22, mgMinutesToPx(b.end) - top - 2);
+      el.style.top = top + 'px';
+      el.style.height = height + 'px';
+      const pinEl = el.parentElement && el.parentElement.querySelector(`.mg-detached-pin[data-block-id="${b.id}"]`);
+      if (pinEl) pinEl.style.top = (top - 12) + 'px';
+    };
+    const onBodyPointerUp = (e) => {
+      if (!dragState) return;
+      try { el.releasePointerCapture(dragState.pointerId); } catch (_) {}
+      el.classList.remove('is-dragging');
+      dragState = null;
+      el._dragJustEnded = true;
+      save();
+      renderMobile();
+    };
+    el.addEventListener('pointerdown', onBodyPointerDown);
+    el.addEventListener('pointermove', onBodyPointerMove);
+    el.addEventListener('pointerup', onBodyPointerUp);
+    el.addEventListener('pointercancel', onBodyPointerUp);
 
     const wireResize = (handle, mode) => {
       if (!handle) return;
@@ -9441,6 +9842,14 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
     document.getElementById('mg-drawer-close').addEventListener('click', closeMgDrawer);
     MG.drawerBackdrop.addEventListener('click', closeMgDrawer);
     document.getElementById('mg-jump-now').addEventListener('click', jumpToNow);
+
+    // Tap anywhere outside a tile deactivates the currently-active tile, so
+    // the new tap-to-activate model doesn't leave tiles stuck "selected".
+    MG.scroll.addEventListener('click', (e) => {
+      if (!e.target.closest('.mg-mobile-event')) {
+        MG.timeline.querySelectorAll('.mg-mobile-event.is-active').forEach(t => t.classList.remove('is-active'));
+      }
+    });
 
     // Pinch-to-zoom. During the pinch we use mgRescaleInPlace() which mutates
     // inline styles only (no innerHTML, no template regen) — fluid on mobile.
