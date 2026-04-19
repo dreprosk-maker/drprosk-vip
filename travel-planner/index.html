@@ -4307,13 +4307,15 @@
   };
   let DAY_PALETTE = THEMES.sunset.days;
   const WEATHER_EMOJI = ['☀️','☀️','⛅','☁️','☀️','🌤️','☁️'];
-  const STORAGE_KEY = 'slc-trip-planner-v3';
-  // Build/deploy version — deploy.sh replaces 0419-0359 with current
+  const STORAGE_KEY = 'slc-trip-planner-v4';
+  // Build/deploy version — deploy.sh replaces 0419-0408 with current
   // timestamp before pushing. In development (un-deployed), shows "dev".
   const APP_VERSION = (function () {
-    const v = '0419-0359';
+    const v = '0419-0408';
     return v.indexOf('__') === 0 ? 'dev' : v;
   })();
+  // Legacy storage keys we migrate / fall back to in order.
+  const OLD_KEYS = ['slc-trip-planner-v3', 'slc-trip-planner-v2'];
   const OLD_KEY = 'slc-trip-planner-v2';
 
   // ========== STATE ==========
