@@ -4461,10 +4461,10 @@
   let DAY_PALETTE = THEMES.sunset.days;
   const WEATHER_EMOJI = ['☀️','☀️','⛅','☁️','☀️','🌤️','☁️'];
   const STORAGE_KEY = 'slc-trip-planner-v4';
-  // Build/deploy version — deploy.sh replaces 0419-2034 with current
+  // Build/deploy version — deploy.sh replaces __VERSION__ with current
   // timestamp before pushing. In development (un-deployed), shows "dev".
   const APP_VERSION = (function () {
-    const v = '0419-2034';
+    const v = '__VERSION__';
     return v.indexOf('__') === 0 ? 'dev' : v;
   })();
   // Legacy storage keys we migrate / fall back to in order.
@@ -9407,23 +9407,29 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
     MG.drawerBackdrop.addEventListener('click', closeMgDrawer);
     document.getElementById('mg-jump-now').addEventListener('click', jumpToNow);
 
-    // Pinch-to-zoom. Instead of a CSS-transform preview (which stretches
-    // non-scaling elements like headers/text and causes a visual "jump" on
-    // release), we re-render at the new density directly — throttled to one
-    // update per animation frame so it stays smooth. WYSIWYG: what the user
-    // sees mid-pinch IS the final state when they release.
+    // Pinch-to-zoom. During the pinch we apply a cheap CSS scaleY transform for
+    // fluid preview (no layout / no re-render). On touchend we commit the new
+    // density once via setMgZoom. A power-of-0.7 damping curve flattens the
+    // response so small finger motions → small zoom changes (fine control).
     MG.scroll.addEventListener('touchstart', (e) => {
       if (e.touches.length === 2) {
         const [a, b] = e.touches;
         const dx = a.clientX - b.clientX, dy = a.clientY - b.clientY;
+        const midY = (a.clientY + b.clientY) / 2;
+        const rect = MG.scroll.getBoundingClientRect();
+        // Focal point in content-space so transform-origin scales about the
+        // fingers — the point between the fingers stays visually fixed.
+        const focalY = MG.scroll.scrollTop + (midY - rect.top);
         MG._pinch = {
           dist: Math.hypot(dx, dy),
           startZoom: MG.pxPerHour,
-          midY: (a.clientY + b.clientY) / 2,
-          pendingZoom: MG.pxPerHour,
-          pendingMidY: (a.clientY + b.clientY) / 2,
-          raf: 0,
+          midY, focalY,
+          scale: 1, raf: 0,
         };
+        if (MG.timeline) {
+          MG.timeline.style.transformOrigin = `0px ${focalY}px`;
+          MG.timeline.style.willChange = 'transform';
+        }
       }
     }, { passive: true });
     MG.scroll.addEventListener('touchmove', (e) => {
@@ -9431,25 +9437,40 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
         const [a, b] = e.touches;
         const dx = a.clientX - b.clientX, dy = a.clientY - b.clientY;
         const dist = Math.hypot(dx, dy);
-        // Damping: raw ratio ^ 0.7 flattens the curve so small finger motions
-        // → small zoom changes (fine-grained control).
+        // Damping: raw ratio ^ 0.7 makes large stretches produce smaller zoom
+        // deltas, so it's easy to hit small increments.
         const rawRatio = dist / MG._pinch.dist;
         const damped = Math.pow(rawRatio, 0.7);
-        MG._pinch.pendingZoom = MG._pinch.startZoom * damped;
-        MG._pinch.pendingMidY = (a.clientY + b.clientY) / 2;
+        // Clamp preview scale to the allowable zoom range.
+        const minScale = MG.minPxPerHour / MG._pinch.startZoom;
+        const maxScale = MG.maxPxPerHour / MG._pinch.startZoom;
+        const scale = Math.max(minScale, Math.min(maxScale, damped));
+        MG._pinch.scale = scale;
         if (!MG._pinch.raf) {
           MG._pinch.raf = requestAnimationFrame(() => {
             if (!MG._pinch) return;
             MG._pinch.raf = 0;
-            setMgZoom(MG._pinch.pendingZoom, MG._pinch.pendingMidY);
+            if (MG.timeline) MG.timeline.style.transform = `scaleY(${MG._pinch.scale})`;
           });
         }
       }
     }, { passive: true });
     const endPinch = () => {
       if (!MG._pinch) return;
+      const finalScale = MG._pinch.scale;
+      const startZoom = MG._pinch.startZoom;
+      const midY = MG._pinch.midY;
       if (MG._pinch.raf) { cancelAnimationFrame(MG._pinch.raf); }
       MG._pinch = null;
+      if (MG.timeline) {
+        MG.timeline.style.transform = '';
+        MG.timeline.style.transformOrigin = '';
+        MG.timeline.style.willChange = '';
+      }
+      // Only commit if there was a meaningful change (avoid re-renders on taps).
+      if (Math.abs(finalScale - 1) > 0.02) {
+        setMgZoom(startZoom * finalScale, midY);
+      }
     };
     MG.scroll.addEventListener('touchend', endPinch, { passive: true });
     MG.scroll.addEventListener('touchcancel', endPinch, { passive: true });
