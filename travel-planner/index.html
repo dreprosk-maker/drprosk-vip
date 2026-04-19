@@ -4308,10 +4308,10 @@
   let DAY_PALETTE = THEMES.sunset.days;
   const WEATHER_EMOJI = ['☀️','☀️','⛅','☁️','☀️','🌤️','☁️'];
   const STORAGE_KEY = 'slc-trip-planner-v3';
-  // Build/deploy version — deploy.sh replaces 0419-0246 with current
+  // Build/deploy version — deploy.sh replaces 0419-0300 with current
   // timestamp before pushing. In development (un-deployed), shows "dev".
   const APP_VERSION = (function () {
-    const v = '0419-0246';
+    const v = '0419-0300';
     return v.indexOf('__') === 0 ? 'dev' : v;
   })();
   const OLD_KEY = 'slc-trip-planner-v2';
@@ -8585,12 +8585,21 @@ Date: ${dateISO || '(unknown)'}
         <textarea class="mg-drawer-notes" id="mg-trip-notes" placeholder="Anything to remember…">${escapeHtml(t.tripNotes || '')}</textarea>
       </div>
       <div class="mg-drawer-section">
-        <div class="mg-drawer-section-title">Sync between phones</div>
-        <input type="text" class="mg-drawer-notes" id="mg-sync-url" placeholder="Apps Script URL (https://script.google.com/macros/s/.../exec)" value="${escapeHtml(SYNC.url)}" style="min-height:0;height:40px;margin-bottom:6px;">
-        <input type="text" class="mg-drawer-notes" id="mg-sync-key" placeholder="Sync key (e.g. slc2026)" value="${escapeHtml(SYNC.key)}" style="min-height:0;height:40px;margin-bottom:8px;">
-        <button class="mg-drawer-row" id="mg-sync-save">💾 Save sync settings</button>
-        <button class="mg-drawer-row" id="mg-sync-push">⬆ Push to cloud</button>
-        <button class="mg-drawer-row" id="mg-sync-pull">⬇ Pull from cloud</button>
+        <div class="mg-drawer-section-title">Cloud sync</div>
+        ${SYNC.key ? `
+          <div class="mg-drawer-notes" style="min-height:0;padding:10px;line-height:1.4;">
+            Signed in as <strong>${escapeHtml(SYNC.key)}</strong>${SYNC.expiresAt ? ` · expires ${formatSyncExpiry(SYNC.expiresAt)}` : ''}
+          </div>
+          <button class="mg-drawer-row" id="mg-sync-signout">🔓 Sign out</button>
+          <button class="mg-drawer-row" id="mg-sync-push">⬆ Push now</button>
+          <button class="mg-drawer-row" id="mg-sync-pull">⬇ Pull now</button>
+        ` : `
+          <div class="mg-drawer-notes" style="min-height:0;padding:10px;line-height:1.4;">
+            Not signed in. Use Sign in below to sync this trip across your phones and laptop.
+          </div>
+          <input type="text" class="mg-drawer-notes" id="mg-sync-key" placeholder="Password (same on every device)" style="min-height:0;height:40px;margin-bottom:8px;">
+          <button class="mg-drawer-row" id="mg-sync-save">🔐 Sign in</button>
+        `}
         <div class="mg-sync-status" id="mg-sync-status"></div>
       </div>
       <div class="mg-drawer-section">
@@ -8652,7 +8661,6 @@ Date: ${dateISO || '(unknown)'}
     });
 
     // Sync wiring
-    const urlEl = MG.drawerBody.querySelector('#mg-sync-url');
     const keyEl = MG.drawerBody.querySelector('#mg-sync-key');
     const statusEl = MG.drawerBody.querySelector('#mg-sync-status');
     const setStatus = (txt, kind) => {
@@ -8662,17 +8670,35 @@ Date: ${dateISO || '(unknown)'}
     };
     const saveBtn = MG.drawerBody.querySelector('#mg-sync-save');
     if (saveBtn) saveBtn.addEventListener('click', () => {
-      SYNC.url = (urlEl.value || '').trim();
-      SYNC.key = (keyEl.value || '').trim();
+      const pw = (keyEl && keyEl.value || '').trim();
+      if (!pw) { setStatus('Enter a password first.', 'err'); return; }
+      SYNC.url = '';
+      SYNC.key = pw;
+      SYNC.expiresAt = Date.now() + SYNC_SESSION_MS;
       saveSyncConfig();
-      setStatus('Saved. Use Push to upload this phone\u2019s data, or Pull to download.', 'ok');
+      startLiveListener();
+      // Pull existing cloud state for this password, so an already-used
+      // password on a new device fills in the trip immediately.
+      pullFromSheet().then(res => {
+        if (res.ok && !res.empty) setStatus('Signed in \u2714 synced from cloud.', 'ok');
+        else setStatus('Signed in \u2714 this device is now the source.', 'ok');
+        renderMobileDrawer();
+      });
+    });
+    const signoutBtn = MG.drawerBody.querySelector('#mg-sync-signout');
+    if (signoutBtn) signoutBtn.addEventListener('click', () => {
+      if (!confirm('Sign out? Cloud sync will stop, but your local trip data stays.')) return;
+      stopLiveListener();
+      SYNC.url = '';
+      SYNC.key = '';
+      SYNC.expiresAt = 0;
+      saveSyncConfig();
+      setSyncPillState('off');
+      renderMobileDrawer();
     });
     const pushBtn = MG.drawerBody.querySelector('#mg-sync-push');
     if (pushBtn) pushBtn.addEventListener('click', async () => {
-      SYNC.url = (urlEl.value || '').trim();
-      SYNC.key = (keyEl.value || '').trim();
-      saveSyncConfig();
-      if (!SYNC.url || !SYNC.key) { setStatus('Set the URL and key first.', 'err'); return; }
+      if (!SYNC.key) { setStatus('Sign in first.', 'err'); return; }
       setStatus('Pushing\u2026', 'pending');
       const res = await pushToSheet();
       if (res.ok) setStatus('Pushed \u2714 ' + new Date().toLocaleTimeString(), 'ok');
@@ -8680,11 +8706,8 @@ Date: ${dateISO || '(unknown)'}
     });
     const pullBtn = MG.drawerBody.querySelector('#mg-sync-pull');
     if (pullBtn) pullBtn.addEventListener('click', async () => {
-      SYNC.url = (urlEl.value || '').trim();
-      SYNC.key = (keyEl.value || '').trim();
-      saveSyncConfig();
-      if (!SYNC.url || !SYNC.key) { setStatus('Set the URL and key first.', 'err'); return; }
-      if (!confirm('Pull latest from cloud? This will replace this phone\u2019s local data with whatever is on the sheet.')) return;
+      if (!SYNC.key) { setStatus('Sign in first.', 'err'); return; }
+      if (!confirm('Pull latest from cloud? This will replace this device\u2019s local data with whatever is in the cloud.')) return;
       setStatus('Pulling\u2026', 'pending');
       const res = await pullFromSheet();
       if (res.ok && res.empty) setStatus('Cloud is empty \u2014 push first.', 'err');
@@ -9034,7 +9057,21 @@ Date: ${dateISO || '(unknown)'}
   const SYNC_SECRET = 'proskconnor'; // legacy — not used by Firestore path
   const SYNC_CFG_KEY = 'slc-sync-config';
   const SYNC_COLLECTION = 'travelPlanner';
-  const SYNC = { url: '', key: '', lastPushed: 0, lastPulled: 0, inflight: false, pushTimer: null, liveUnsub: null };
+  const SYNC_SESSION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+  const SYNC = { url: '', key: '', expiresAt: 0, lastPushed: 0, lastPulled: 0, inflight: false, pushTimer: null, liveUnsub: null };
+
+  // Friendly "expires in X days" / "expires today" label for the drawer.
+  function formatSyncExpiry(ts) {
+    try {
+      const ms = Number(ts) - Date.now();
+      if (ms <= 0) return 'expired';
+      const days = Math.round(ms / (24 * 60 * 60 * 1000));
+      if (days >= 2) return 'in ' + days + ' days';
+      if (days === 1) return 'tomorrow';
+      const hours = Math.round(ms / (60 * 60 * 1000));
+      return hours <= 1 ? 'in <1h' : 'in ' + hours + 'h';
+    } catch (e) { return ''; }
+  }
   function _fs() {
     try {
       if (!window.firebase || !firebase.apps || !firebase.apps.length) return null;
@@ -9058,16 +9095,26 @@ Date: ${dateISO || '(unknown)'}
   function loadSyncConfig() {
     try {
       const raw = localStorage.getItem(SYNC_CFG_KEY);
-      if (raw) {
-        const cfg = JSON.parse(raw);
-        SYNC.url = cfg.url || '';
-        SYNC.key = cfg.key || '';
+      if (!raw) return;
+      const cfg = JSON.parse(raw);
+      SYNC.url = cfg.url || '';
+      SYNC.key = cfg.key || '';
+      SYNC.expiresAt = Number(cfg.expiresAt || 0);
+      // 7-day session: if expired, drop the key so we'll re-prompt for login.
+      // Local trip data stays put — we only invalidate the cloud connection.
+      if (SYNC.expiresAt && SYNC.expiresAt < Date.now()) {
+        SYNC.key = '';
+        SYNC.expiresAt = 0;
       }
     } catch (e) {}
   }
   function saveSyncConfig() {
     try {
-      localStorage.setItem(SYNC_CFG_KEY, JSON.stringify({ url: SYNC.url, key: SYNC.key }));
+      localStorage.setItem(SYNC_CFG_KEY, JSON.stringify({
+        url: SYNC.url,
+        key: SYNC.key,
+        expiresAt: SYNC.expiresAt || 0,
+      }));
     } catch (e) {}
   }
 
@@ -9139,6 +9186,59 @@ Date: ${dateISO || '(unknown)'}
     SYNC.pushTimer = setTimeout(() => { pushToSheet(); }, 2000);
   }
 
+  // Subscribe to the Firestore doc so this window updates the instant any
+  // other device (or tab) writes. Called whenever sync config is set.
+  function startLiveListener() {
+    stopLiveListener();
+    const db = _fs();
+    if (!db || !SYNC.key) return;
+    try {
+      SYNC.liveUnsub = db.collection(SYNC_COLLECTION).doc(SYNC.key)
+        .onSnapshot({ includeMetadataChanges: false }, (snap) => {
+          try {
+            // Skip snapshots that reflect our own unacked local write —
+            // Firestore fires onSnapshot immediately for local pushes too.
+            if (snap.metadata && snap.metadata.hasPendingWrites) return;
+            if (!snap.exists) return;
+            // If we have a debounced push scheduled, our local state is
+            // newer than what just arrived — skip. The push will fire in
+            // <2s and eventually propagate the merged local state.
+            if (SYNC.pushTimer) return;
+            if (SYNC.inflight) return;
+            const data = snap.data() || {};
+            const remoteRaw = String(data.payload || '');
+            if (!remoteRaw) return;
+            let localRaw = '';
+            try { localRaw = (localStorage.getItem(STORAGE_KEY) || '').trim(); } catch (e) {}
+            if (remoteRaw === localRaw) {
+              // Either our own write echoed back, or we're already in sync.
+              SYNC.lastPulled = Date.now();
+              return;
+            }
+            // Validate remote JSON before overwriting local — never poison
+            // this device with corrupt payload from the cloud.
+            try { JSON.parse(remoteRaw); }
+            catch (e) { console.warn('[sync] remote payload invalid JSON; ignoring'); return; }
+            try { localStorage.setItem(STORAGE_KEY, remoteRaw); } catch (e) {}
+            SYNC.lastPulled = Date.now();
+            setSyncPillState('saved');
+            _reloadStateFromStorage();
+          } catch (e) {
+            console.warn('[sync] snapshot handler failed:', e && e.message);
+          }
+        }, (err) => {
+          console.warn('[sync] listener error:', err && err.message);
+          setSyncPillState('error');
+        });
+    } catch (e) {
+      console.warn('[sync] listener start failed:', e && e.message);
+    }
+  }
+  function stopLiveListener() {
+    try { if (SYNC.liveUnsub) SYNC.liveUnsub(); } catch (e) {}
+    SYNC.liveUnsub = null;
+  }
+
   function _reloadStateFromStorage() {
     // Rehydrate trips/config/etc from localStorage. This is invoked after a
     // successful pull from the cloud. The bootstrap code already knows how
@@ -9149,16 +9249,75 @@ Date: ${dateISO || '(unknown)'}
   }
 
   loadSyncConfig();
-  // On startup: if sync is configured, pull the latest from the sheet.
-  if (SYNC.url && SYNC.key) {
+  // On startup: if sync is configured, pull the latest from the cloud,
+  // then subscribe to live updates so subsequent changes from other
+  // devices/tabs flow in without a manual refresh.
+  if (SYNC.key) {
     pullFromSheet().then(res => {
       if (!res.ok && res.reason) console.log('[sync] pull:', res.reason);
+      startLiveListener();
     });
+  }
+  // Tear down the listener when the tab is closed/navigated away.
+  window.addEventListener('beforeunload', stopLiveListener);
+
+  // First-time (or post-expiry) sign-in overlay. A thin auto-prompt that
+  // lets the user type one shared password and stay signed in for 7 days.
+  // Sign-in here is the ONLY way to turn on cross-device sync.
+  function showSigninOverlay() {
+    if (SYNC.key) return;
+    if (document.getElementById('slc-signin-overlay')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'slc-signin-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,0.55);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;';
+    overlay.innerHTML = `
+      <div style="background:#fff;color:#0f172a;max-width:380px;width:100%;border-radius:16px;padding:24px 22px;box-shadow:0 24px 60px rgba(2,6,23,0.35);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;">
+        <div style="font-size:20px;font-weight:700;margin-bottom:6px;">Sign in to sync</div>
+        <div style="font-size:14px;line-height:1.45;color:#475569;margin-bottom:16px;">
+          Pick a password and use the <em>same one</em> on every device (both phones, laptop) so your trip stays in sync. You&rsquo;ll only be asked again in 7 days.
+        </div>
+        <input id="slc-signin-pw" type="text" placeholder="Shared password" autocomplete="off"
+               style="width:100%;font-size:16px;padding:12px 12px;border:1px solid #cbd5e1;border-radius:10px;outline:none;margin-bottom:12px;box-sizing:border-box;">
+        <div style="display:flex;gap:8px;">
+          <button id="slc-signin-later" style="flex:1;padding:11px 10px;border-radius:10px;border:1px solid #cbd5e1;background:#f8fafc;color:#0f172a;font-size:14px;cursor:pointer;">Not now</button>
+          <button id="slc-signin-go" style="flex:2;padding:11px 10px;border-radius:10px;border:0;background:#4f6df5;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Sign in</button>
+        </div>
+        <div id="slc-signin-status" style="font-size:12px;color:#64748b;margin-top:10px;min-height:16px;"></div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const pwEl = overlay.querySelector('#slc-signin-pw');
+    const statusEl = overlay.querySelector('#slc-signin-status');
+    const commit = async () => {
+      const pw = (pwEl.value || '').trim();
+      if (!pw) { statusEl.textContent = 'Type a password first.'; return; }
+      statusEl.textContent = 'Connecting\u2026';
+      SYNC.url = '';
+      SYNC.key = pw;
+      SYNC.expiresAt = Date.now() + SYNC_SESSION_MS;
+      saveSyncConfig();
+      const res = await pullFromSheet();
+      // If the cloud already has a doc for this password, pullFromSheet
+      // will reload the page. Otherwise we just start listening.
+      if (!(res && res.ok) || res.empty || res.unchanged) {
+        startLiveListener();
+        setSyncPillState('idle');
+        overlay.remove();
+        try { renderMobileDrawer(); } catch (e) {}
+      }
+    };
+    overlay.querySelector('#slc-signin-go').addEventListener('click', commit);
+    overlay.querySelector('#slc-signin-later').addEventListener('click', () => overlay.remove());
+    pwEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') commit(); });
+    setTimeout(() => pwEl.focus(), 50);
+  }
+  if (!SYNC.key) {
+    // Defer a beat so the app paints first and the overlay lands on top.
+    setTimeout(showSigninOverlay, 300);
   }
 
   initMobile();
   // After mobile is initialized the pill exists — set its initial state.
-  setSyncPillState((SYNC.url && SYNC.key) ? 'idle' : 'off');
+  setSyncPillState(SYNC.key ? 'idle' : 'off');
 
   setView(currentView);
   renderLegend();
