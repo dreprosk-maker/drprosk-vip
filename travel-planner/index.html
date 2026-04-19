@@ -3909,6 +3909,25 @@
     .mobile-guide { display: flex !important; flex-direction: column; height: 100dvh; width: 100vw; }
   }
 </style>
+
+<!-- Firebase SDK (compat) — powers cross-device sync via Firestore. Uses a
+     dedicated 'travel-book-sync' project (separate from bozeman-smiles). No
+     build step, no bundler. Loaded from Google's CDN. -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+  window.__FIREBASE_CONFIG = {
+    apiKey: 'AIzaSyAwNoqV_-KbZvZBSTeJ5u1BK18jLSciDzs',
+    authDomain: 'travel-book-sync.firebaseapp.com',
+    projectId: 'travel-book-sync',
+    storageBucket: 'travel-book-sync.firebasestorage.app',
+    messagingSenderId: '251785746131',
+    appId: '1:251785746131:web:1cbd27d1bfd9c7ef8de626',
+  };
+  try {
+    if (window.firebase && !firebase.apps.length) firebase.initializeApp(window.__FIREBASE_CONFIG);
+  } catch (e) { console.warn('[firebase] init failed:', e && e.message); }
+</script>
 </head>
 <body>
 
@@ -4289,10 +4308,10 @@
   let DAY_PALETTE = THEMES.sunset.days;
   const WEATHER_EMOJI = ['☀️','☀️','⛅','☁️','☀️','🌤️','☁️'];
   const STORAGE_KEY = 'slc-trip-planner-v3';
-  // Build/deploy version — deploy.sh replaces 0419-0229 with current
+  // Build/deploy version — deploy.sh replaces 0419-0246 with current
   // timestamp before pushing. In development (un-deployed), shows "dev".
   const APP_VERSION = (function () {
-    const v = '0419-0229';
+    const v = '0419-0246';
     return v.indexOf('__') === 0 ? 'dev' : v;
   })();
   const OLD_KEY = 'slc-trip-planner-v2';
@@ -9005,13 +9024,23 @@ Date: ${dateISO || '(unknown)'}
     schedulePushToSheet();
   };
 
-  // ========== CROSS-DEVICE SYNC (Google Sheets) ==========
-  // The shared secret matches the SECRET constant in travel-book-sync.gs.
-  // Every request to the Apps Script includes ?secret=... so a leaked
-  // Apps Script URL alone isn't enough to read or write your data.
-  const SYNC_SECRET = 'proskconnor';
+  // ========== CROSS-DEVICE SYNC (Firestore) ==========
+  // Uses the dedicated 'travel-book-sync' Firebase project. Each sync key is a
+  // document in the `travelPlanner` collection. Payload is the whole
+  // localStorage JSON (trips/days/blocks/...) as a string, written atomically.
+  // Previous versions stored data in a Google Sheet via Apps Script — that
+  // backend is no longer used, but the 'url' field in the old sync config
+  // is still read for backward compatibility (and ignored).
+  const SYNC_SECRET = 'proskconnor'; // legacy — not used by Firestore path
   const SYNC_CFG_KEY = 'slc-sync-config';
-  const SYNC = { url: '', key: '', lastPushed: 0, lastPulled: 0, inflight: false, pushTimer: null };
+  const SYNC_COLLECTION = 'travelPlanner';
+  const SYNC = { url: '', key: '', lastPushed: 0, lastPulled: 0, inflight: false, pushTimer: null, liveUnsub: null };
+  function _fs() {
+    try {
+      if (!window.firebase || !firebase.apps || !firebase.apps.length) return null;
+      return firebase.firestore();
+    } catch (e) { return null; }
+  }
 
   // Update the little cloud pill in the mobile header to reflect sync state.
   function setSyncPillState(state) {
@@ -9044,21 +9073,16 @@ Date: ${dateISO || '(unknown)'}
 
   async function pullFromSheet(opts) {
     opts = opts || {};
-    if (!SYNC.url || !SYNC.key) return { ok: false, reason: 'not configured' };
+    if (!SYNC.key) return { ok: false, reason: 'not configured' };
+    const db = _fs();
+    if (!db) return { ok: false, reason: 'firestore not loaded' };
     try {
-      const u = SYNC.url
-        + (SYNC.url.includes('?') ? '&' : '?')
-        + 'secret=' + encodeURIComponent(SYNC_SECRET)
-        + '&key=' + encodeURIComponent(SYNC.key);
-      const r = await fetch(u, { method: 'GET' });
-      if (!r.ok) return { ok: false, reason: 'HTTP ' + r.status };
-      const data = await r.json();
-      if (data && data.error) return { ok: false, reason: data.error };
-      if (!data || !data.payload) return { ok: true, empty: true };
-      const remoteRaw = String(data.payload);
+      const snap = await db.collection(SYNC_COLLECTION).doc(SYNC.key).get();
+      if (!snap.exists) return { ok: true, empty: true };
+      const data = snap.data() || {};
+      const remoteRaw = String(data.payload || '');
+      if (!remoteRaw) return { ok: true, empty: true };
       const localRaw = (localStorage.getItem(STORAGE_KEY) || '').trim();
-      // No-op if local already matches remote (prevents reload loops on
-      // every page open).
       if (remoteRaw === localRaw) {
         SYNC.lastPulled = Date.now();
         return { ok: true, unchanged: true };
@@ -9068,60 +9092,41 @@ Date: ${dateISO || '(unknown)'}
       try { localStorage.setItem(STORAGE_KEY, remoteRaw); } catch (e) {}
       SYNC.lastPulled = Date.now();
       _reloadStateFromStorage();
-      return { ok: true, updatedAt: data.updated_at };
+      const ts = data.updatedAt && data.updatedAt.toDate ? data.updatedAt.toDate().toISOString() : null;
+      return { ok: true, updatedAt: ts };
     } catch (e) {
-      return { ok: false, reason: e.message || String(e) };
+      return { ok: false, reason: (e && e.message) || String(e) };
     }
   }
 
   async function pushToSheet() {
-    if (!SYNC.url || !SYNC.key || SYNC.inflight) return { ok: false };
+    if (!SYNC.key || SYNC.inflight) return { ok: false };
+    const db = _fs();
+    if (!db) { setSyncPillState('error'); return { ok: false, reason: 'firestore not loaded' }; }
     let raw;
     try { raw = localStorage.getItem(STORAGE_KEY) || ''; } catch (e) { return { ok: false, reason: 'no data' }; }
     if (!raw) return { ok: false, reason: 'no data' };
     // Refuse to push corrupted local state — otherwise one bad write
-    // poisons the sheet and the other phone inherits the damage.
+    // poisons the cloud and the other phone inherits the damage.
     try { JSON.parse(raw); }
     catch (e) { setSyncPillState('error'); console.warn('[sync] local data is invalid JSON, refusing to push'); return { ok: false, reason: 'bad local JSON' }; }
-    // Google Sheets has a hard 50,000-char limit per cell. Warn early
-    // so we catch it before silent truncation.
-    if (raw.length > 45000) {
-      console.warn('[sync] payload is', raw.length, 'chars — approaching Sheets 50K cell limit');
-    }
     SYNC.inflight = true;
     setSyncPillState('saving');
     try {
-      // NOTE: Previously this sent the payload as a GET query-string
-      // parameter, but Apps Script silently truncates query params past
-      // ~8KB — which corrupted the JSON and caused events / whole days
-      // to vanish after a round-trip. POST with text/plain avoids that
-      // limit AND dodges the CORS preflight that application/json would
-      // trigger (Apps Script web apps don't answer OPTIONS).
-      const body = JSON.stringify({
-        secret: SYNC_SECRET,
-        action: 'save',
-        key: SYNC.key,
-        data: raw
-      });
-      const r = await fetch(SYNC.url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: body,
-        redirect: 'follow',
-      });
-      const data = await r.json();
-      if (data && data.error) {
-        setSyncPillState('error');
-        return { ok: false, reason: data.error };
-      }
+      await db.collection(SYNC_COLLECTION).doc(SYNC.key).set({
+        payload: raw,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        client: (navigator.userAgent || '').slice(0, 200),
+        size: raw.length,
+      }, { merge: true });
       SYNC.lastPushed = Date.now();
       setSyncPillState('saved');
-      // Return to idle after 1.5s
-      setTimeout(() => { if (SYNC.url && SYNC.key) setSyncPillState('idle'); }, 1500);
-      return { ok: r.ok, ...data };
+      setTimeout(() => { if (SYNC.key) setSyncPillState('idle'); }, 1500);
+      return { ok: true };
     } catch (e) {
       setSyncPillState('error');
-      return { ok: false, reason: e.message || String(e) };
+      console.warn('[sync] push failed:', e && e.message);
+      return { ok: false, reason: (e && e.message) || String(e) };
     } finally {
       SYNC.inflight = false;
     }
