@@ -4308,10 +4308,10 @@
   let DAY_PALETTE = THEMES.sunset.days;
   const WEATHER_EMOJI = ['☀️','☀️','⛅','☁️','☀️','🌤️','☁️'];
   const STORAGE_KEY = 'slc-trip-planner-v3';
-  // Build/deploy version — deploy.sh replaces 0419-0300 with current
+  // Build/deploy version — deploy.sh replaces 0419-0359 with current
   // timestamp before pushing. In development (un-deployed), shows "dev".
   const APP_VERSION = (function () {
-    const v = '0419-0300';
+    const v = '0419-0359';
     return v.indexOf('__') === 0 ? 'dev' : v;
   })();
   const OLD_KEY = 'slc-trip-planner-v2';
@@ -4582,22 +4582,52 @@
   }
 
   function seedDefault() {
-    const d0 = { key: newDayKey(), date: new Date(2026, 3, 24) };
-    const d1 = { key: newDayKey(), date: new Date(2026, 3, 25) };
-    const d2 = { key: newDayKey(), date: new Date(2026, 3, 26) };
-    const d3 = { key: newDayKey(), date: new Date(2026, 3, 27) };
+    const d0 = { key: newDayKey(), date: new Date(2026, 3, 23) };
+    const d1 = { key: newDayKey(), date: new Date(2026, 3, 24) };
+    const d2 = { key: newDayKey(), date: new Date(2026, 3, 25) };
+    const d3 = { key: newDayKey(), date: new Date(2026, 3, 26) };
+    const d4 = { key: newDayKey(), date: new Date(2026, 3, 27) };
     const trip = {
       id: newTripId(), name: 'Salt Lake City Trip',
-      days: [d0, d1, d2, d3],
+      days: [d0, d1, d2, d3, d4],
       blocks: [
-        { id: newBlockId(), day: d0.key, start: 330, end: 600, cat: 'transit',
-          title: 'Drive: West Yellowstone → SLC', notes: '~5h 15m · leave early for BMW appt' },
-        { id: newBlockId(), day: d0.key, start: 600, end: 780, cat: 'other',
-          title: 'BMW X1 Service', notes: 'Pleasant Grove · (801) 754-6132\n2111 W Grove Parkway' },
+        // Thu Apr 23 — drive out, food, drive to Idaho Falls
+        { id: newBlockId(), day: d0.key, start: 1080, end: 1170, cat: 'transit',
+          title: 'Drive to West Yellowstone', notes: '' },
+        { id: newBlockId(), day: d0.key, start: 1170, end: 1230, cat: 'food',
+          title: 'Burgers at West Yellowstone', notes: '' },
+        { id: newBlockId(), day: d0.key, start: 1230, end: 1350, cat: 'transit',
+          title: 'Drive to Idaho Falls', notes: '' },
+        // Fri Apr 24 — drive to SLC, BMW
+        { id: newBlockId(), day: d1.key, start: 405, end: 600, cat: 'transit',
+          title: 'Drive to Salt Lake City', notes: '' },
+        { id: newBlockId(), day: d1.key, start: 600, end: 660, cat: 'other',
+          title: 'BMW appointment', notes: '' },
+        // Sat Apr 25 — MJ Movie late night
+        { id: newBlockId(), day: d2.key, start: 1320, end: 1440, cat: 'activity',
+          title: 'MJ Movie', notes: '9335 South State Street, Salt Lake City, Utah' },
+        // Sun Apr 26 — MJ Movie spills past midnight, shopping
+        { id: newBlockId(), day: d3.key, start: 0, end: 60, cat: 'activity',
+          title: 'MJ Movie', notes: '' },
+        { id: newBlockId(), day: d3.key, start: 600, end: 855, cat: 'other',
+          title: 'Shopping', notes: '1. Nordstrom Rack, 2210 S 1300 E, Salt Lake City, UT 84106' },
+        // Mon Apr 27 — drive home
+        { id: newBlockId(), day: d4.key, start: 480, end: 870, cat: 'transit',
+          title: 'Drive to Bozeman', notes: '' },
       ],
-      hotels: [],
-      tasks: [],
-      tripNotes: '',
+      hotels: [
+        { id: newHotelId(), name: 'Hilton Garden Inn Idaho Falls',
+          checkInDay: d0.key, checkOutDay: d1.key,
+          checkInTime: 1380, checkOutTime: 390,
+          address: '700 Lindsay Boulevard, Idaho Falls, ID 83402, United States',
+          phone: '+1 208-522-9500', confirmation: '6651149703',
+          url: '', location: '',
+          notes: 'PIN: 7905\nCheck-in from 15:00' },
+      ],
+      tasks: [
+        { id: newTaskId(), text: 'Hotel with Copper in Salt Lake City', owner: 'Connor', done: false, blockId: null },
+      ],
+      tripNotes: 'Shopping: Theory Outlet, Crate and Barrel\n\n- add reservation drop in function, screenshot copy and paste\n',
       view: { startHour: 6, endHour: 24, pxPerHour: 60, daysShown: 'all', daysOffset: 0 },
     };
     trips = [trip];
@@ -7628,15 +7658,34 @@ Date: ${dateISO || '(unknown)'}
       }
       return day;
     }
-    if (Array.isArray(data.days)) data.days.forEach(d => ensureDay(d.dateISO || d.date));
+    // Build a map from the imported day.key → dateISO so we can resolve
+    // blocks/hotels that reference days by key (the format our own exportJson produces).
+    const importKeyToDate = {};
+    if (Array.isArray(data.days)) {
+      data.days.forEach(d => {
+        const iso = d.dateISO || (typeof d.date === 'string' ? d.date : null);
+        if (d.key && iso) importKeyToDate[d.key] = iso;
+        ensureDay(iso);
+      });
+    }
+    function resolveDay(obj, ...keyFields) {
+      for (const f of keyFields) {
+        const v = obj?.[f];
+        if (!v) continue;
+        if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return ensureDay(v);
+        if (importKeyToDate[v]) return ensureDay(importKeyToDate[v]);
+      }
+      return null;
+    }
     if (Array.isArray(data.hotels)) {
       data.hotels.forEach(h => {
-        const ci = ensureDay(h.checkInDate || h.checkIn || h.checkInISO);
-        const co = ensureDay(h.checkOutDate || h.checkOut || h.checkOutISO);
+        const ci = resolveDay(h, 'checkInDate', 'checkIn', 'checkInISO', 'checkInDay');
+        const co = resolveDay(h, 'checkOutDate', 'checkOut', 'checkOutISO', 'checkOutDay');
         if (!ci || !co) return;
         getHotels().push({
           id: newHotelId(), name: h.name || '',
           checkInDay: ci.key, checkOutDay: co.key,
+          checkInTime: h.checkInTime, checkOutTime: h.checkOutTime,
           address: h.address || '', phone: h.phone || '',
           confirmation: h.confirmation || '', url: h.url || '',
           location: h.location || '', notes: h.notes || '',
@@ -7646,11 +7695,21 @@ Date: ${dateISO || '(unknown)'}
     }
     if (Array.isArray(data.blocks)) {
       data.blocks.forEach(b => {
-        const day = ensureDay(b.date || b.dayDate);
+        const day = resolveDay(b, 'date', 'dayDate', 'dateISO', 'day');
         if (!day) return;
         getBlocks().push({ id: newBlockId(), day: day.key, start: b.start, end: b.end, cat: b.cat || 'activity', title: b.title || '', notes: b.notes || '' });
         added.blocks++;
       });
+    }
+    if (Array.isArray(data.tasks)) {
+      data.tasks.forEach(t => {
+        const text = t.text || t.title || '';
+        if (!text) return;
+        getTasks().push({ id: newTaskId(), text, owner: t.owner || '', done: !!t.done, blockId: null });
+      });
+    }
+    if (typeof data.tripNotes === 'string' && data.tripNotes && !T().tripNotes) {
+      T().tripNotes = data.tripNotes;
     }
     getDays().sort((a, b) => a.date - b.date);
     save(); build(); renderTasks();
