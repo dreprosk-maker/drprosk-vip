@@ -4461,10 +4461,10 @@
   let DAY_PALETTE = THEMES.sunset.days;
   const WEATHER_EMOJI = ['☀️','☀️','⛅','☁️','☀️','🌤️','☁️'];
   const STORAGE_KEY = 'slc-trip-planner-v4';
-  // Build/deploy version — deploy.sh replaces 0419-2034 with current
+  // Build/deploy version — deploy.sh replaces 0419-2045 with current
   // timestamp before pushing. In development (un-deployed), shows "dev".
   const APP_VERSION = (function () {
-    const v = '0419-2034';
+    const v = '0419-2045';
     return v.indexOf('__') === 0 ? 'dev' : v;
   })();
   // Legacy storage keys we migrate / fall back to in order.
@@ -8596,7 +8596,7 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
     const labels = [];
     for (let h = MG.startHour + 1; h < MG.endHour; h++) {
       const top = (h - MG.startHour) * MG.pxPerHour;
-      labels.push(`<div class="mg-axis-hour" style="top:${top}px">${mgFmtHourShort(h)}</div>`);
+      labels.push(`<div class="mg-axis-hour" data-mg-h="${h}" style="top:${top}px">${mgFmtHourShort(h)}</div>`);
     }
     const inner = labels.join('');
     return `
@@ -8609,12 +8609,46 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
     const lines = [];
     for (let h = MG.startHour + 1; h < MG.endHour; h++) {
       const top = (h - MG.startHour) * MG.pxPerHour;
-      lines.push(`<div class="mg-hour-line" style="top:${top}px"></div>`);
+      lines.push(`<div class="mg-hour-line" data-mg-h="${h}" style="top:${top}px"></div>`);
       if (MG.pxPerHour >= 40) {
-        lines.push(`<div class="mg-hour-line half" style="top:${top + MG.pxPerHour / 2}px"></div>`);
+        lines.push(`<div class="mg-hour-line half" data-mg-h="${h}" style="top:${top + MG.pxPerHour / 2}px"></div>`);
       }
     }
     return lines.join('');
+  }
+
+  // Fast in-place rescale used during pinch-zoom. Updates inline styles on
+  // positioned elements without re-rendering HTML — 10-20x cheaper than
+  // renderMobile(), which lets the pinch feel fluid on mobile.
+  function mgRescaleInPlace(newPx) {
+    if (!MG.timeline) return;
+    MG.pxPerHour = newPx;
+    // Day body heights
+    const bodyH = (MG.endHour - MG.startHour) * newPx;
+    MG.timeline.querySelectorAll('.mg-day-body').forEach(el => {
+      el.style.height = bodyH + 'px';
+    });
+    // Hour-positioned elements (axis labels, hour lines)
+    MG.timeline.querySelectorAll('[data-mg-h]').forEach(el => {
+      const h = +el.dataset.mgH;
+      let t = (h - MG.startHour) * newPx;
+      if (el.classList.contains('half')) t += newPx / 2;
+      el.style.top = t + 'px';
+    });
+    // Minute-positioned elements (events, hotel bands, gaps, pins, now-line)
+    MG.timeline.querySelectorAll('[data-mg-s]').forEach(el => {
+      const s = +el.dataset.mgS;
+      const off = +(el.dataset.mgOff || 0);
+      const topPx = mgMinutesToPx(s) + off;
+      el.style.top = topPx + 'px';
+      if (el.dataset.mgE != null) {
+        const e = +el.dataset.mgE;
+        const minH = +(el.dataset.mgMinh || 0);
+        const bpad = +(el.dataset.mgBpad || 0);
+        const hPx = Math.max(minH, mgMinutesToPx(e) - mgMinutesToPx(s) - bpad);
+        el.style.height = hPx + 'px';
+      }
+    });
   }
 
   function renderMobile() {
@@ -8692,7 +8726,7 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
         if (thisIdx === co && h.checkOutTime != null) endMin = Math.min(endMin, h.checkOutTime);
         const top = mgMinutesToPx(startMin);
         const height = Math.max(12, mgMinutesToPx(endMin) - top);
-        return `<div class="mg-hotel-band" style="top:${top}px;height:${height}px"><span>🏨 ${escapeHtml(h.name || 'Hotel')}</span></div>`;
+        return `<div class="mg-hotel-band" data-mg-s="${startMin}" data-mg-e="${endMin}" data-mg-minh="12" style="top:${top}px;height:${height}px"><span>🏨 ${escapeHtml(h.name || 'Hotel')}</span></div>`;
       }).join('');
 
       const eventsHtml = dayBlocks.map((b, evIdx) => {
@@ -8740,7 +8774,8 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
         return `
           <div class="block cat-${b.cat} mg-mobile-event ${isPast ? 'is-past' : ''} ${isNow ? 'is-now' : ''} ${isCompact ? 'compact' : ''} ${edgeTop ? 'edge-top' : ''} ${edgeBottom ? 'edge-bottom' : ''}"
                style="top:${top}px;height:${height}px;animation-delay:${animDelay}s;${mgCatColorVars(b.cat)}"
-               data-block-id="${b.id}">
+               data-block-id="${b.id}"
+               data-mg-s="${b.start}" data-mg-e="${b.end}" data-mg-minh="22" data-mg-bpad="2">
             <div class="block-bg"></div>
             <div class="resize-handle top mg-resize" data-resize="top" data-block-id="${b.id}"></div>
             <div class="block-content">
@@ -8764,7 +8799,7 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
         const cat = getCat(b.cat);
         const top = mgMinutesToPx(b.start) - 12;
         const isPast = iso < nowISO || (iso === nowISO && b.end < nowMin);
-        return `<span class="block-cat mg-detached-pin ${isPast ? 'is-past' : ''}" data-block-id="${b.id}" style="top:${top}px;${mgCatColorVars(b.cat)}" title="${escapeHtml(cat.label)}">${cat.icon}</span>`;
+        return `<span class="block-cat mg-detached-pin ${isPast ? 'is-past' : ''}" data-block-id="${b.id}" data-mg-s="${b.start}" data-mg-off="-12" style="top:${top}px;${mgCatColorVars(b.cat)}" title="${escapeHtml(cat.label)}">${cat.icon}</span>`;
       }).join('');
 
       // --- Gap actions ---
@@ -8831,7 +8866,7 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
         // into a single glass pill button that opens a popover with actions.
         const isCompact = height < 110;
         if (isCompact) {
-          return `<div class="mg-gap compact" style="top:${top}px;height:${height}px">
+          return `<div class="mg-gap compact" data-mg-s="${g.start}" data-mg-e="${g.end}" data-mg-minh="22" style="top:${top}px;height:${height}px">
             <button class="mg-gap-pill" data-gap-actions="${encodeURIComponent(locCtx || '')}" data-gap-label="${escapeHtml(g.label)}">
               <span class="dot"></span>
               <span>${g.label}</span>
@@ -8840,7 +8875,7 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
           </div>`;
         }
         return `
-          <div class="mg-gap" style="top:${top}px;height:${height}px">
+          <div class="mg-gap" data-mg-s="${g.start}" data-mg-e="${g.end}" data-mg-minh="22" style="top:${top}px;height:${height}px">
             <div class="mg-gap-label">${g.label}</div>
             ${mgGapActionsHtml(locCtx)}
           </div>
@@ -8849,7 +8884,7 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
 
       // Now line (today only)
       const nowLineHtml = isToday
-        ? `<div class="mg-now-line" style="top:${mgMinutesToPx(nowMin)}px"></div>`
+        ? `<div class="mg-now-line" data-mg-s="${nowMin}" style="top:${mgMinutesToPx(nowMin)}px"></div>`
         : '';
 
       const dayGrad = mgDayGradient(di);
@@ -9407,21 +9442,25 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
     MG.drawerBackdrop.addEventListener('click', closeMgDrawer);
     document.getElementById('mg-jump-now').addEventListener('click', jumpToNow);
 
-    // Pinch-to-zoom. Instead of a CSS-transform preview (which stretches
-    // non-scaling elements like headers/text and causes a visual "jump" on
-    // release), we re-render at the new density directly — throttled to one
-    // update per animation frame so it stays smooth. WYSIWYG: what the user
-    // sees mid-pinch IS the final state when they release.
+    // Pinch-to-zoom. During the pinch we use mgRescaleInPlace() which mutates
+    // inline styles only (no innerHTML, no template regen) — fluid on mobile.
+    // The scroll anchor is adjusted each frame so the midpoint between the
+    // fingers stays pinned to the same content. On release we do a single
+    // renderMobile() to sync compact/expanded tile states at the final density.
     MG.scroll.addEventListener('touchstart', (e) => {
       if (e.touches.length === 2) {
         const [a, b] = e.touches;
         const dx = a.clientX - b.clientX, dy = a.clientY - b.clientY;
+        const midY = (a.clientY + b.clientY) / 2;
+        const rect = MG.scroll.getBoundingClientRect();
         MG._pinch = {
           dist: Math.hypot(dx, dy),
           startZoom: MG.pxPerHour,
-          midY: (a.clientY + b.clientY) / 2,
+          startScrollTop: MG.scroll.scrollTop,
+          startFocalY: MG.scroll.scrollTop + (midY - rect.top),
+          midY,
+          rectTop: rect.top,
           pendingZoom: MG.pxPerHour,
-          pendingMidY: (a.clientY + b.clientY) / 2,
           raf: 0,
         };
       }
@@ -9435,13 +9474,21 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
         // → small zoom changes (fine-grained control).
         const rawRatio = dist / MG._pinch.dist;
         const damped = Math.pow(rawRatio, 0.7);
-        MG._pinch.pendingZoom = MG._pinch.startZoom * damped;
-        MG._pinch.pendingMidY = (a.clientY + b.clientY) / 2;
+        const targetZoom = Math.max(MG.minPxPerHour, Math.min(MG.maxPxPerHour, MG._pinch.startZoom * damped));
+        MG._pinch.pendingZoom = targetZoom;
+        MG._pinch.midY = (a.clientY + b.clientY) / 2;
         if (!MG._pinch.raf) {
           MG._pinch.raf = requestAnimationFrame(() => {
             if (!MG._pinch) return;
             MG._pinch.raf = 0;
-            setMgZoom(MG._pinch.pendingZoom, MG._pinch.pendingMidY);
+            const newPx = MG._pinch.pendingZoom;
+            if (Math.abs(newPx - MG.pxPerHour) < 0.1) return;
+            mgRescaleInPlace(newPx);
+            // Keep the point between the fingers pinned to the same content.
+            // Approx: scale the pinch-start focal content-Y by the zoom ratio.
+            const scale = newPx / MG._pinch.startZoom;
+            const newFocalY = MG._pinch.startFocalY * scale;
+            MG.scroll.scrollTop = newFocalY - (MG._pinch.midY - MG._pinch.rectTop);
           });
         }
       }
@@ -9449,7 +9496,11 @@ ${hint ? 'Additional hint from user: ' + hint : ''}
     const endPinch = () => {
       if (!MG._pinch) return;
       if (MG._pinch.raf) { cancelAnimationFrame(MG._pinch.raf); }
+      const savedScroll = MG.scroll.scrollTop;
       MG._pinch = null;
+      // Full render once to sync compact/expanded tile states at the final density.
+      renderMobile();
+      MG.scroll.scrollTop = savedScroll;
     };
     MG.scroll.addEventListener('touchend', endPinch, { passive: true });
     MG.scroll.addEventListener('touchcancel', endPinch, { passive: true });
